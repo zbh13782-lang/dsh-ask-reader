@@ -1,0 +1,56 @@
+{
+  "name": "dsh-ask-reader",
+  "version": "0.1.0",
+  "description": "Right Sidebar reading board: pin a reply there as rendered Markdown, then select a passage and send it back to the chat composer as a quote.",
+  "type": "module",
+  "license": "MIT",
+  "author": "zbh13782-lang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zbh13782-lang/dsh-ask-reader.git"
+  },
+  "homepage": "https://github.com/zbh13782-lang/dsh-ask-reader#readme",
+  "bugs": {
+    "url": "https://github.com/zbh13782-lang/dsh-ask-reader/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "sidebar",
+    "reading",
+    "markdown"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "docs",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    },
+    "manifestVersion": 1
+  },
+  "icon": "./icon.svg"
+}
