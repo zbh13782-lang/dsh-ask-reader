@@ -615,11 +615,21 @@ window.__ModuleLoader__.load({
 
       return {
         entries,
+        /**
+         * Prepend one entry. The merge reads the persisted list, not the render
+         * cache: a write must never replace entries this page has not loaded yet
+         * (a reload between two writes used to be able to drop them).
+         */
         add(sessionId, entry) {
-          return commit(sessionId, [entry, ...entries(sessionId)].slice(0, ENTRY_LIMIT))
+          const fresh = read(String(sessionId))
+          const merged = [entry, ...fresh.filter((row) => row.id !== entry.id)]
+          return commit(sessionId, merged.slice(0, ENTRY_LIMIT))
         },
+        /** @returns whether it was stored; a removal of an absent entry writes nothing. */
         remove(sessionId, id) {
-          return commit(sessionId, entries(sessionId).filter((entry) => entry.id !== id))
+          const fresh = read(String(sessionId))
+          if (!fresh.some((entry) => entry.id === id)) return true
+          return commit(sessionId, fresh.filter((entry) => entry.id !== id))
         },
         clear(sessionId) {
           return commit(sessionId, [])

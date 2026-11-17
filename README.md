@@ -27,6 +27,7 @@ Long answers are easier to work through beside the chat than in it: the board ke
 
 - Pins live in browser `localStorage`, one set per session; a reload keeps them, clearing site data removes them.
 - Pins hold at most 40 entries per session; the oldest is dropped past that.
+- Every write merges against what is already stored rather than the in-page cache, so a reload between two writes cannot drop a pin.
 - Quotes are capped: 2000 characters from a reply (that reply is already in the session log), 6000 from a pasted excerpt. The overflow is marked `… (truncated)`.
 - Only the session on screen has a composer. Where it is unavailable, the panel copies the passage to the clipboard and says so instead.
 - The Markdown renderer is the plugin's own and deliberately small: no math, no Mermaid, no raw HTML, no images. Those show as text.
