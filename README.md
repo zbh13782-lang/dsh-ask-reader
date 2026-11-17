@@ -20,7 +20,7 @@ Long answers are easier to work through beside the chat than in it: the board ke
 
 1. **Pin.** Under any finished assistant reply, click the arrow icon (hover shows “Pin to reading board”). The right column opens on the **Reading board** tab.
    - Or open the board from the arrow icon in the session header, and paste arbitrary text with **+ Paste text** at the bottom of the panel.
-2. **Read.** Pins render as Markdown — headings, lists, blockquotes, tables, fenced code, bold/italic/inline code/links — not as source. Cards are expanded in full; **Collapse** folds one back to a preview.
+2. **Read.** Pins render as Markdown — headings, lists, blockquotes, tables, syntax-coloured fenced code, bold/italic/inline code/links — not as source. Cards are expanded in full; **Collapse** folds one back to a preview.
 3. **Ask.** Drag-select a passage; a blue pill **→ Send to chat** appears once the selection is released. Clicking it puts that passage into the main composer as a Markdown quote — add your question and send. Without a selection, **Ask** on the card quotes the whole pin.
 
 ## Behaviour
@@ -30,6 +30,7 @@ Long answers are easier to work through beside the chat than in it: the board ke
 - Quotes are capped: 2000 characters from a reply (that reply is already in the session log), 6000 from a pasted excerpt. The overflow is marked `… (truncated)`.
 - Only the session on screen has a composer. Where it is unavailable, the panel copies the passage to the clipboard and says so instead.
 - The Markdown renderer is the plugin's own and deliberately small: no math, no Mermaid, no raw HTML, no images. Those show as text.
+- Fenced code is coloured with the theme's own shiki palette (`--shiki-token-*`), so a block reads here exactly as it does in the conversation and follows light/dark with the rest of the app. Recognised languages: `js`/`ts`/`tsx`, `python`, `go`, `rust`, `sh`/`bash`, `sql`, `json`, `yaml`. Anything else stays in plain monospace rather than guessing.
 
 ## Install
 
