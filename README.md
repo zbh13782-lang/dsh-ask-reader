@@ -4,7 +4,11 @@ A right-Sidebar **reading board** for DeepSeek Harness. Pin one of the assistant
 
 ## Screenshots
 
-The entry point — the arrow action in the row under a finished reply (the label appears on hover):
+A reply pinned on the right, rendered as Markdown beside the conversation — heading, numbered steps, a blockquote, a table and a labelled code block, with the card's own controls under it:
+
+![The reading board with a pinned reply rendered as Markdown](assets/panel.png)
+
+The entry point — the arrow action in the row under a finished reply (its label appears on hover, laid out like the row's other icon buttons):
 
 ![The reading-board action in a finished reply's action row](assets/action-row.png)
 
