@@ -177,13 +177,18 @@ window.__ModuleLoader__.load({
       '.akr-md-table{border-collapse:collapse;font-size:12px;line-height:1.5;}',
       '.akr-md-table th,.akr-md-table td{border:1px solid var(--dsw-alias-border-l1);padding:3px 7px;text-align:left;vertical-align:top;}',
       '.akr-md-table th{background:var(--dsw-alias-bg-layer-2);font-weight:600;}',
-      '.akr-md-fence{margin:.5em 0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);overflow:hidden;}',
-      '.akr-md-lang{font-size:11px;color:var(--dsw-alias-label-secondary);padding:3px 8px;',
-      'border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-2);}',
-      '.akr-md-code{margin:0;padding:8px 10px;overflow-x:auto;background:var(--dsw-alias-bg-layer-2);',
-      'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre;}',
-      '.akr-icode{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;',
-      'background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-radius:4px;padding:0 3px;}',
+      // Code chrome follows the chat's own markdown tokens, so a fence reads the
+      // same here as it does in the conversation.
+      '.akr-md-fence{margin:.5em 0;border-radius:var(--dsw-radius-sm,8px);overflow:hidden;',
+      'background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-2));}',
+      '.akr-md-lang{font-size:11px;color:var(--dsw-alias-label-secondary);padding:3px 10px;',
+      'background:var(--dsw-alias-markdown-code-block-banner,var(--dsw-alias-bg-layer-2));}',
+      '.akr-md-code{margin:0;padding:8px 10px;overflow-x:auto;background:transparent;',
+      'color:var(--shiki-foreground,var(--dsw-alias-label-primary));',
+      'font:var(--dsw-font-markdown-code-block,12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace);white-space:pre;}',
+      '.akr-md-code code{font:inherit;background:none;border:0;padding:0;}',
+      '.akr-icode{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.92em;',
+      'background:var(--dsw-alias-markdown-inline-code,var(--dsw-alias-bg-layer-2));border-radius:4px;padding:0 4px;}',
     ].join('')
 
     /** Theme-token stylesheet, rendered as an element so unmounting removes it. */
@@ -269,6 +274,161 @@ window.__ModuleLoader__.load({
       return h('p', { key: prefix }, nodes)
     }
 
+    /**
+     * Syntax colours: the theme's own shiki palette (the same custom properties
+     * the chat's code blocks resolve), so a fence here is coloured exactly like
+     * one in the conversation and follows light/dark with the rest of the app.
+     */
+    const CODE_INK = {
+      comment: 'var(--shiki-token-comment, var(--dsw-alias-label-secondary))',
+      string: 'var(--shiki-token-string, #2f9e44)',
+      constant: 'var(--shiki-token-constant, #1c7ed6)',
+      keyword: 'var(--shiki-token-keyword, #d6336c)',
+      function: 'var(--shiki-token-function, #6741d9)',
+      punctuation: 'var(--shiki-token-punctuation, #495057)',
+    }
+
+    /** Lexical hints per language family: comment leaders, keywords, literal words. */
+    const CODE_RULES = {
+      js: {
+        lines: ['//'], block: '/*',
+        keywords: new Set(('const let var function return if else for while do switch case default break continue throw try catch '
+          + 'finally new delete typeof instanceof in of class extends super this import from export async await yield static '
+          + 'get set void interface type enum implements public private protected readonly as declare namespace').split(' ')),
+        literals: new Set(['null', 'undefined', 'true', 'false', 'NaN', 'Infinity']),
+      },
+      py: {
+        lines: ['#'], block: null,
+        keywords: new Set(('def class return if elif else for while in not and or is import from as with try except finally '
+          + 'raise lambda pass global nonlocal yield async await assert del break continue').split(' ')),
+        literals: new Set(['None', 'True', 'False']),
+      },
+      go: {
+        lines: ['//'], block: '/*',
+        keywords: new Set(('func package import return if else for range switch case default break continue type struct '
+          + 'interface map chan go defer select var const fallthrough goto').split(' ')),
+        literals: new Set(['nil', 'true', 'false', 'iota']),
+      },
+      rust: {
+        lines: ['//'], block: '/*',
+        keywords: new Set(('fn let mut pub use mod struct enum impl trait for while loop if else match return as where const '
+          + 'static ref move async await dyn unsafe type self Self').split(' ')),
+        literals: new Set(['true', 'false', 'None', 'Some', 'Ok', 'Err']),
+      },
+      sh: {
+        lines: ['#'], block: null,
+        keywords: new Set(('if then else elif fi for in do done while case esac function return export local set unset source '
+          + 'alias read echo cd exit').split(' ')),
+        literals: new Set(['true', 'false']),
+      },
+      sql: {
+        lines: ['--'], block: '/*',
+        keywords: new Set(('select from where insert into values update set delete create table drop alter join left right '
+          + 'inner outer on group by order having limit offset as and or not primary key index distinct union case when then '
+          + 'else end').split(' ')),
+        literals: new Set(['null', 'true', 'false']),
+      },
+      json: { lines: [], block: null, keywords: new Set([]), literals: new Set(['true', 'false', 'null']) },
+      yaml: { lines: ['#'], block: null, keywords: new Set([]), literals: new Set(['true', 'false', 'null']) },
+    }
+
+    /** Map a fence's language tag onto one of the lexical families above. */
+    function codeFamily(lang) {
+      const tag = String(lang || '').toLowerCase()
+      if (/^(js|jsx|mjs|cjs|ts|tsx|mts|cts|javascript|typescript)$/.test(tag)) return 'js'
+      if (/^(py|python|py3)$/.test(tag)) return 'py'
+      if (/^(go|golang)$/.test(tag)) return 'go'
+      if (/^(rs|rust)$/.test(tag)) return 'rust'
+      if (/^(sh|bash|zsh|shell|console)$/.test(tag)) return 'sh'
+      if (/^(sql|mysql|sqlite|postgres|psql)$/.test(tag)) return 'sql'
+      if (/^(json|jsonc)$/.test(tag)) return 'json'
+      if (/^(ya?ml)$/.test(tag)) return 'yaml'
+      return ''
+    }
+
+    /**
+     * Colour one fenced block. A small scanner, not a parser: it recognises
+     * comments, strings, numbers, keywords, literals and call names, and leaves
+     * everything else in the foreground ink. That is enough to read code the way
+     * the chat shows it, without shipping a highlighter engine.
+     * @param source - the fence body.
+     * @param lang - the fence's language tag.
+     * @returns text and coloured spans, in source order.
+     */
+    function highlightCode(source, lang) {
+      const text = String(source == null ? '' : source)
+      const family = codeFamily(lang)
+      const rules = family === '' ? undefined : CODE_RULES[family]
+      if (rules === undefined) return [text]
+      const out = []
+      let plain = ''
+      let i = 0
+      const flush = () => { if (plain !== '') { out.push(plain); plain = '' } }
+      const emit = (kind, value) => {
+        flush()
+        out.push(h('span', { key: 'k' + out.length, style: { color: CODE_INK[kind] } }, value))
+      }
+      const identStart = (ch) => /[A-Za-z_$]/.test(ch)
+      const identPart = (ch) => /[A-Za-z0-9_$]/.test(ch)
+      while (i < text.length) {
+        const ch = text.charAt(i)
+        const lineLeader = rules.lines.find((lead) => text.startsWith(lead, i))
+        if (lineLeader !== undefined) {
+          let end = text.indexOf('\n', i)
+          if (end < 0) end = text.length
+          emit('comment', text.slice(i, end))
+          i = end
+          continue
+        }
+        if (rules.block !== null && rules.block !== undefined && text.startsWith(rules.block, i)) {
+          const close = text.indexOf('*/', i + 2)
+          const end = close < 0 ? text.length : close + 2
+          emit('comment', text.slice(i, end))
+          i = end
+          continue
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+          let j = i + 1
+          while (j < text.length) {
+            const at = text.charAt(j)
+            if (at === '\\') { j += 2; continue }
+            if (at === ch) { j += 1; break }
+            if (ch !== '`' && at === '\n') break
+            j += 1
+          }
+          emit('string', text.slice(i, j))
+          i = j
+          continue
+        }
+        if (/[0-9]/.test(ch) && !identPart(text.charAt(i - 1))) {
+          let j = i
+          while (j < text.length && /[0-9a-fA-FxXoObB._]/.test(text.charAt(j))) j += 1
+          emit('constant', text.slice(i, j))
+          i = j
+          continue
+        }
+        if (identStart(ch)) {
+          let j = i
+          while (j < text.length && identPart(text.charAt(j))) j += 1
+          const word = text.slice(i, j)
+          if (rules.keywords.has(word)) emit('keyword', word)
+          else if (rules.literals.has(word)) emit('constant', word)
+          else {
+            let k = j
+            while (k < text.length && /[ \t]/.test(text.charAt(k))) k += 1
+            if (text.charAt(k) === '(') emit('function', word)
+            else plain += word
+          }
+          i = j
+          continue
+        }
+        plain += ch
+        i += 1
+      }
+      flush()
+      return out
+    }
+
     const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/
     const HEADING = /^(#{1,6})\s+(.*)$/
     const FENCE = /^\s*(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/
@@ -305,7 +465,8 @@ window.__ModuleLoader__.load({
           i += 1
           blocks.push(h('div', { className: 'akr-md-fence', key: keyOf('fence') },
             lang ? h('div', { className: 'akr-md-lang', key: 'l' }, lang) : null,
-            h('pre', { className: 'akr-md-code', key: 'c' }, h('code', null, body.join('\n')))))
+            h('pre', { className: 'akr-md-code', key: 'c' },
+              h('code', null, highlightCode(body.join('\n'), lang)))))
           continue
         }
 
