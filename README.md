@@ -33,11 +33,15 @@ Long answers are easier to work through beside the chat than in it: the board ke
 
 ## Install
 
+From the repository, or from the prebuilt tarball attached to [the latest release](https://github.com/zbh13782-lang/dsh-ask-reader/releases/latest):
+
 ```sh
 dsh plugin --profile <profile> add github:zbh13782-lang/dsh-ask-reader
+# or
+dsh plugin --profile <profile> add https://github.com/zbh13782-lang/dsh-ask-reader/releases/latest/download/dsh-ask-reader.tgz
 ```
 
-Or, in DSH Desktop, **Settings → Plugins → Add plugin** and paste the repository URL. The package declares `dsh.bundle`, ships no dependencies and needs no build step.
+Or, in DSH Desktop, **Settings → Plugins → Add plugin** and paste either address. The package declares `dsh.bundle`, ships no dependencies, no build step and no install scripts — a tarball install therefore skips the build-approval prompt.
 
 ## Layout
 
