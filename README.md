@@ -2,6 +2,12 @@
 
 A right-Sidebar **reading board** for DeepSeek Harness. Pin one of the assistant's replies into the right column, read it as rendered Markdown beside the conversation, then select the part you do not understand and send it back into the main composer as a quote.
 
+## Screenshots
+
+The entry point — the arrow action in the row under a finished reply (the label appears on hover):
+
+![The reading-board action in a finished reply's action row](assets/action-row.png)
+
 ## Why
 
 Long answers are easier to work through beside the chat than in it: the board keeps one reply visible while you scroll the conversation, and asking about a specific sentence is one gesture instead of retyping it.
