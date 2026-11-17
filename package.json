@@ -35,7 +35,9 @@
     "docs",
     "icon.svg",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "screenshots.json",
+    "assets"
   ],
   "dsh": {
     "bundle": {
@@ -52,5 +54,5 @@
     },
     "manifestVersion": 1
   },
-  "icon": "./icon.svg"
+  "icon": "./assets/icon-512.png"
 }
