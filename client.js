@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
         'action.askSelection': '提问所选',
         'action.copy': '复制',
         'action.remove': '删除',
+        'action.jump': '跳转',
         'action.expand': '展开',
         'action.collapse': '收起',
         'clear': '清空',
@@ -66,6 +67,7 @@ window.__ModuleLoader__.load({
         'note.copyFailed': '复制没有成功，请手动选中文字复制。',
         'note.saved': '已存入阅读板。',
         'note.alreadySaved': '这条回复已经在阅读板里了。',
+        'note.jumpMissing': '这条消息已经不在当前加载的对话里了。',
         'note.storageFailed': '浏览器拒绝保存，这次的内容只在当前页面有效。',
         'unit.entries': '条',
       },
@@ -87,6 +89,7 @@ window.__ModuleLoader__.load({
         'action.askSelection': 'Ask selection',
         'action.copy': 'Copy',
         'action.remove': 'Remove',
+        'action.jump': 'Jump',
         'action.expand': 'Expand',
         'action.collapse': 'Collapse',
         'clear': 'Clear',
@@ -102,6 +105,7 @@ window.__ModuleLoader__.load({
         'note.copyFailed': 'Copy failed — select the text and copy it by hand.',
         'note.saved': 'Pinned.',
         'note.alreadySaved': 'This reply is already on the board.',
+        'note.jumpMissing': 'That message is no longer in the loaded conversation.',
         'note.storageFailed': 'The browser refused to save it; it lasts only for this page.',
         'unit.entries': 'pinned',
       },
@@ -126,6 +130,8 @@ window.__ModuleLoader__.load({
       'background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;min-height:0;flex:none;}',
       '.akr-card-head{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);}',
       '.akr-card-title{flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '.akr-time{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);',
+      'font-variant-numeric:tabular-nums;white-space:nowrap;}',
       '.akr-tag{flex:none;font-size:11px;color:var(--dsw-alias-label-secondary);border:1px solid var(--dsw-alias-border-l1);',
       'border-radius:999px;padding:0 6px;line-height:16px;}',
       // A card reads in full by default; 收起 only folds it back to a preview.
@@ -660,6 +666,26 @@ window.__ModuleLoader__.load({
       return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
     }
 
+    /**
+     * The stamp a card shows: the clock alone for today, the date and clock for
+     * another day this year, and the year as well once it is not this year.
+     * @param time - unix epoch ms.
+     * @returns the compact stamp, or an empty string without a usable time.
+     */
+    function formatStamp(time) {
+      if (!Number.isFinite(time)) return ''
+      const at = new Date(time)
+      const now = new Date()
+      const pad = (value) => String(value).padStart(2, '0')
+      const clock = pad(at.getHours()) + ':' + pad(at.getMinutes())
+      const sameDay = at.getFullYear() === now.getFullYear()
+        && at.getMonth() === now.getMonth()
+        && at.getDate() === now.getDate()
+      if (sameDay) return clock
+      const date = pad(at.getMonth() + 1) + '-' + pad(at.getDate())
+      return at.getFullYear() === now.getFullYear() ? date + ' ' + clock : at.getFullYear() + '-' + date + ' ' + clock
+    }
+
     /** First non-empty line as a chip-sized title, with its markup marks removed. */
     function titleOf(text) {
       const line = String(text).split('\n').map((row) => row.trim()).find((row) => row.length > 0) || ''
@@ -667,8 +693,8 @@ window.__ModuleLoader__.load({
       return plain.length > 60 ? plain.slice(0, 60) + '…' : plain
     }
 
-    /** The readable text of one finalized assistant reply. */
-    function replyText(nodes, messageId) {
+    /** One finalized assistant reply: its readable text and the time it was written. */
+    function replySnapshot(nodes, messageId) {
       let all = []
       try {
         all = nodes && typeof nodes.values === 'function' ? nodes.values() : []
@@ -680,13 +706,15 @@ window.__ModuleLoader__.load({
         const finalNode = data && data.finalNode
         if (!finalNode || finalNode.messageId !== messageId) continue
         const blocks = Array.isArray(finalNode.blocks) ? finalNode.blocks : []
-        return blocks
+        const text = blocks
           .filter((block) => block && block.kind === 'text' && typeof block.text === 'string')
           .map((block) => block.text)
           .join('\n\n')
           .trim()
+        if (text === '') return null
+        return { text, time: Number.isFinite(data.time) ? data.time : undefined }
       }
-      return ''
+      return null
     }
 
     /** Put text on the clipboard; @returns whether the browser accepted it. */
@@ -899,6 +927,9 @@ window.__ModuleLoader__.load({
       const [pick, setPick] = React.useState(null)
       const [confirmClear, setConfirmClear] = React.useState(false)
       const [note, showNote] = useNote()
+      // The chat's own node table: the jump needs the anchor key of a message,
+      // which only the conversation knows.
+      const chatNodes = props.useChat((snapshot) => snapshot.nodes)
       const rootRef = React.useRef(null)
       const pillRef = React.useRef(null)
       const clearTimer = React.useRef(0)
@@ -908,7 +939,12 @@ window.__ModuleLoader__.load({
       // Parse each pin once per change: a selection drag re-renders this panel on
       // every selectionchange, and re-parsing a long reply each time would stutter.
       const rendered = React.useMemo(
-        () => entries.map((entry) => ({ entry, blocks: mdBlocks(entry.text) })),
+        () => entries.map((entry) => ({
+          entry,
+          blocks: mdBlocks(entry.text),
+          stamp: formatStamp(entry.time),
+          stampTitle: Number.isFinite(entry.time) ? new Date(entry.time).toLocaleString() : '',
+        })),
         [entries],
       )
 
@@ -1002,6 +1038,37 @@ window.__ModuleLoader__.load({
         if (!board.clear(sessionId)) showNote(t('note.storageFailed'), true)
       }
 
+      /**
+       * Scroll the conversation to the message a pin came from. The chat marks
+       * every row with its anchor key, so the jump is a lookup plus a scroll;
+       * a row outside the loaded window simply is not there to find.
+       */
+      const jumpTo = (entry) => {
+        if (typeof entry.messageId !== 'string' || entry.messageId === '') return
+        const anchorKey = () => {
+          try {
+            for (const node of chatNodes.values()) {
+              const finalNode = node && node.data && node.data.finalNode
+              if (finalNode && finalNode.messageId === entry.messageId && typeof node.key === 'string') return node.key
+            }
+          } catch (error) {
+            return ''
+          }
+          return ''
+        }
+        const reveal = () => {
+          const key = anchorKey()
+          if (key === '') return false
+          const row = document.querySelector('[data-chat-anchor-key="' + key.replace(/["\\]/g, '\\$&') + '"]')
+          if (row === null || typeof row.scrollIntoView !== 'function') return false
+          row.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+          return true
+        }
+        if (reveal()) return
+        // A row that is paging in mounts a frame later.
+        setTimeout(() => { if (!reveal()) showNote(t('note.jumpMissing'), true) }, 160)
+      }
+
       /** Hand one picked passage to the composer and drop the selection. */
       const quotePicked = (text) => {
         setPick(null)
@@ -1043,18 +1110,26 @@ window.__ModuleLoader__.load({
               h('span', null, t('empty.hint')),
             )
           : h('div', { className: 'akr-list' },
-              rendered.map(({ entry, blocks }) => {
+              rendered.map(({ entry, blocks, stamp, stampTitle }) => {
                 // Every pin reads in full on arrival; folding is the exception.
                 const open = !folded.includes(entry.id)
                 return h('div', { className: 'akr-card', key: entry.id },
                   h('div', { className: 'akr-card-head' },
                     h('span', { className: 'akr-tag' }, t(entry.source === 'paste' ? 'source.paste' : 'source.reply')),
                     h('span', { className: 'akr-card-title', title: entry.title }, entry.title),
+                    stamp === '' ? null : h('span', { className: 'akr-time', title: stampTitle }, stamp),
                   ),
                   h('div', {
                     className: 'akr-body akr-md' + (open ? ' akr-body-open' : ''),
                   }, blocks),
                   h('div', { className: 'akr-card-foot' },
+                    entry.source === 'paste'
+                      ? null
+                      : h('button', {
+                          type: 'button', className: 'akr-btn',
+                          title: t('action.jump'),
+                          onClick: () => { jumpTo(entry) },
+                        }, t('action.jump')),
                     h('button', {
                       type: 'button', className: 'akr-btn akr-btn-strong',
                       onClick: () => {
@@ -1114,11 +1189,11 @@ window.__ModuleLoader__.load({
           showNote(t('note.alreadySaved'), false)
           return
         }
-        const text = replyText(nodes, props.messageId)
-        if (!text) { showNote(t('save.empty'), true); return }
+        const snapshot = replySnapshot(nodes, props.messageId)
+        if (snapshot === null) { showNote(t('save.empty'), true); return }
         const stored = board.add(props.sessionId, {
-          id: makeId(), title: titleOf(text), text, source: 'reply',
-          messageId: props.messageId, time: Date.now(),
+          id: makeId(), title: titleOf(snapshot.text), text: snapshot.text, source: 'reply',
+          messageId: props.messageId, time: snapshot.time === undefined ? Date.now() : snapshot.time,
         })
         props.openPanel()
         showNote(stored ? t('note.saved') : t('note.storageFailed'), !stored)

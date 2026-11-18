@@ -21,6 +21,7 @@ Long answers are easier to work through beside the chat than in it: the board ke
 1. **Pin.** Under any finished assistant reply, click the arrow icon (hover shows “Pin to reading board”). The right column opens on the **Reading board** tab.
    - Or open the board from the arrow icon in the session header, and paste arbitrary text with **+ Paste text** at the bottom of the panel.
 2. **Read.** Pins render as Markdown — headings, lists, blockquotes, tables, syntax-coloured fenced code, bold/italic/inline code/links — not as source. Cards are expanded in full; **Collapse** folds one back to a preview.
+   Each card's head shows when its message was written — the clock alone for today, `MM-DD HH:mm` for another day, and the year too once it is not this year — and a **Jump** button scrolls the conversation back to the message the pin came from.
 3. **Ask.** Drag-select a passage; a blue pill **→ Send to chat** appears once the selection is released. Clicking it puts that passage into the main composer as a Markdown quote — add your question and send. Without a selection, **Ask** on the card quotes the whole pin.
 
 ## Behaviour
@@ -29,6 +30,8 @@ Long answers are easier to work through beside the chat than in it: the board ke
 - Pins hold at most 40 entries per session; the oldest is dropped past that.
 - Every write merges against what is already stored rather than the in-page cache, so a reload between two writes cannot drop a pin.
 - Quotes are capped: 2000 characters from a reply (that reply is already in the session log), 6000 from a pasted excerpt. The overflow is marked `… (truncated)`.
+- **Jump** finds the message through the conversation's own anchor keys, so it only reaches rows the chat has loaded; a pin far outside the loaded window reports that instead of scrolling somewhere wrong.
+- Pins made before 0.1.3 carry the time they were pinned; from 0.1.3 on, a reply's pin carries the time the reply was written.
 - Only the session on screen has a composer. Where it is unavailable, the panel copies the passage to the clipboard and says so instead.
 - The Markdown renderer is the plugin's own and deliberately small: no math, no Mermaid, no raw HTML, no images. Those show as text.
 - Fenced code is coloured with the theme's own shiki palette (`--shiki-token-*`), so a block reads here exactly as it does in the conversation and follows light/dark with the rest of the app. Recognised languages: `js`/`ts`/`tsx`, `python`, `go`, `rust`, `sh`/`bash`, `sql`, `json`, `yaml`. Anything else stays in plain monospace rather than guessing.
