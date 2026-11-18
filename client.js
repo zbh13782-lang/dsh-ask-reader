@@ -67,7 +67,8 @@ window.__ModuleLoader__.load({
         'note.copyFailed': '复制没有成功，请手动选中文字复制。',
         'note.saved': '已存入阅读板。',
         'note.alreadySaved': '这条回复已经在阅读板里了。',
-        'note.jumpMissing': '这条消息已经不在当前加载的对话里了。',
+        'note.jumping': '正在向上翻找这条消息……',
+        'note.jumpMissing': '翻到会话开头也没有找到这条消息。',
         'note.storageFailed': '浏览器拒绝保存，这次的内容只在当前页面有效。',
         'unit.entries': '条',
       },
@@ -105,7 +106,8 @@ window.__ModuleLoader__.load({
         'note.copyFailed': 'Copy failed — select the text and copy it by hand.',
         'note.saved': 'Pinned.',
         'note.alreadySaved': 'This reply is already on the board.',
-        'note.jumpMissing': 'That message is no longer in the loaded conversation.',
+        'note.jumping': 'Paging back to find that message…',
+        'note.jumpMissing': 'Reached the start of the conversation without finding that message.',
         'note.storageFailed': 'The browser refused to save it; it lasts only for this page.',
         'unit.entries': 'pinned',
       },
@@ -1045,6 +1047,7 @@ window.__ModuleLoader__.load({
        */
       const jumpTo = (entry) => {
         if (typeof entry.messageId !== 'string' || entry.messageId === '') return
+        /** The conversation's own key for this message, once the chat knows it. */
         const anchorKey = () => {
           try {
             for (const node of chatNodes.values()) {
@@ -1056,26 +1059,48 @@ window.__ModuleLoader__.load({
           }
           return ''
         }
-        const reveal = () => {
+        /** Scroll to the row, or null while it is not mounted. */
+        const reveal = (behavior) => {
           const key = anchorKey()
           if (key === '') return null
           const row = document.querySelector('[data-chat-anchor-key="' + key.replace(/["\\]/g, '\\$&') + '"]')
           if (row === null || typeof row.scrollIntoView !== 'function') return null
-          row.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+          row.scrollIntoView({ block: 'center', inline: 'nearest', behavior })
           return row
         }
-        const row = reveal()
-        if (row !== null) {
+        /** Pull one page of older history; false when there is none left to pull. */
+        const loadOlder = () => {
+          const button = document.querySelector('[data-chat-history] button:not([disabled])')
+          if (button === null) return false
+          button.click()
+          return true
+        }
+
+        const settle = (row) => {
           // A running turn keeps pulling the column to its tail; assert the jump
           // once more after that follow settles.
           setTimeout(() => { try { row.scrollIntoView({ block: 'center', inline: 'nearest' }) } catch (error) { /* gone */ } }, 260)
-          return
         }
-        // A row that is paging in mounts a frame later.
-        setTimeout(() => {
-          const later = reveal()
-          if (later === null) showNote(t('note.jumpMissing'), true)
-        }, 160)
+
+        const found = reveal('smooth')
+        if (found !== null) { settle(found); return }
+
+        // The row is simply not paged in yet: walk the history backwards through
+        // the conversation's own "load older" control until it appears, then stop.
+        showNote(t('note.jumping'), false)
+        const deadline = Date.now() + 15000
+        let pages = 0
+        const step = () => {
+          const row = reveal('instant')
+          if (row !== null) { settle(row); return }
+          if (Date.now() > deadline || pages >= 60 || !loadOlder()) {
+            showNote(t('note.jumpMissing'), true)
+            return
+          }
+          pages += 1
+          setTimeout(step, 220)
+        }
+        setTimeout(step, 160)
       }
 
       /** Hand one picked passage to the composer and drop the selection. */

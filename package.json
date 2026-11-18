@@ -1,6 +1,6 @@
 {
   "name": "dsh-ask-reader",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Right Sidebar reading board: pin a reply there as rendered Markdown, then select a passage and send it back to the chat composer as a quote.",
   "type": "module",
   "license": "MIT",
