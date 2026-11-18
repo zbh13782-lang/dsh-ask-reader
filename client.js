@@ -31,18 +31,46 @@ window.__ModuleLoader__.load({
     /** Quote budget toward the composer: a reply is already in the log, a pasted excerpt is not. */
     const QUOTE_LIMIT_REPLY = 2000
     const QUOTE_LIMIT_PASTE = 6000
+    /** Shortest and longest a pinned turn's rail marker may be drawn, in px. */
+    const RAIL_MIN = 22
+    const RAIL_MAX = 28
+    /** The lengths a non-uniform rail cycles through, the two bounds first. */
+    const RAIL_STEPS = [RAIL_MIN, RAIL_MAX, RAIL_MIN + 2, RAIL_MAX - 2]
+    /** Pinned width before the user picks one, in px. */
+    const RAIL_DEFAULT_WIDTH = 26
+    /** The tick the host paints on a normal rail mark: its width and height, in px. */
+    const RAIL_TICK_WIDTH = 20
+    const RAIL_TICK_HEIGHT = 2
+    /** How thick a pinned tick is drawn, in px: heavier than a normal tick. */
+    const RAIL_PINNED_HEIGHT = 4
+    /** The bright palette a pinned turn is drawn with — a new pin and a backfilled legacy row alike. */
+    const RAIL_COLORS = ['#00bfd8', '#ff669b', '#a78bfa', '#ffae38', '#38c98b', '#5598ff']
 
     const DICT = {
       zh: {
         'tab.title': '阅读板',
+        'rail.heading': '收藏横线',
+        'rail.intro': '调整聊天右侧的轮次导航，设置对本机所有会话生效。',
+        'rail.uniformColor': '统一颜色',
+        'rail.colorHint': '关闭后，每个收藏轮次使用不同的亮色。',
+        'rail.color': '收藏颜色',
+        'rail.uniformLength': '统一长度',
+        'rail.lengthHint': '关闭后按收藏顺序使用 ' + RAIL_STEPS.join('、') + ' 像素；最短也比普通横线长。',
+        'rail.width': '收藏长度',
+        'rail.preview': '效果预览',
+        'rail.ordinary': '普通横线（最长）',
+        'rail.pinned': '收藏横线',
+        'rail.failed': '设置未能保存，请检查本地存储。',
         'guide.title': '阅读板',
         'guide.description': '把一段回复钉在这里慢慢看，再就其中看不懂的地方提问。',
         'header.open': '打开阅读板',
-        'save.action': '存入阅读板',
+        'save.action': '收藏并展开阅读板',
+        'save.quiet': '收藏到阅读板',
+        'save.starred': '已收藏 · 再点一次取消收藏',
         'save.open': '在阅读板中打开',
         'save.empty': '这一条没有可保存的文字。',
         'empty.title': '还没有内容',
-        'empty.hint': '在助手回复下方点「存入阅读板」，或把一段文字粘贴到下面。',
+        'empty.hint': '在助手回复下方点「收藏到阅读板」，或把一段文字粘贴到下面。',
         'compose.toggle': '粘贴一段文字',
         'compose.placeholder': '把想留着看的文字粘贴到这里……',
         'compose.save': '保存',
@@ -65,19 +93,35 @@ window.__ModuleLoader__.load({
         'note.copied': '已复制到剪贴板。',
         'note.copiedForAsk': '输入框不可用，这段已复制到剪贴板，可以直接粘贴到主聊天。',
         'note.copyFailed': '复制没有成功，请手动选中文字复制。',
-        'note.saved': '已存入阅读板。',
+        'note.saved': '已存入阅读板',
         'note.alreadySaved': '这条回复已经在阅读板里了。',
+        'note.unpinned': '已取消收藏',
         'note.jumping': '正在向上翻找这条消息……',
         'note.jumpMissing': '翻到会话开头也没有找到这条消息。',
         'note.storageFailed': '浏览器拒绝保存，这次的内容只在当前页面有效。',
+        'note.noTurn': '这条收藏找不到所在轮次，右侧横线无法显示',
         'unit.entries': '条',
       },
       en: {
         'tab.title': 'Reading board',
+        'rail.heading': 'Pinned turn markers',
+        'rail.intro': 'Customize the turn navigator for all conversations on this device.',
+        'rail.uniformColor': 'Use one color',
+        'rail.colorHint': 'Turn off to give each pinned turn its own bright color.',
+        'rail.color': 'Pin color',
+        'rail.uniformLength': 'Use one length',
+        'rail.lengthHint': 'Turn off to cycle through ' + RAIL_STEPS.slice(0, -1).join(', ') + ' and ' + RAIL_STEPS[RAIL_STEPS.length - 1] + ' px in pin order. Even the shortest exceeds a regular marker.',
+        'rail.width': 'Pin length',
+        'rail.preview': 'Preview',
+        'rail.ordinary': 'Regular marker (longest)',
+        'rail.pinned': 'Pinned markers',
+        'rail.failed': 'Settings could not be saved. Check local storage.',
         'guide.title': 'Reading board',
         'guide.description': 'Pin a reply here to read it, then ask about the parts that are unclear.',
         'header.open': 'Open the reading board',
         'save.action': 'Pin to reading board',
+        'save.quiet': 'Pin to the reading board',
+        'save.starred': 'Pinned · click again to unpin',
         'save.open': 'Open in the reading board',
         'save.empty': 'This message has no text to pin.',
         'empty.title': 'Nothing pinned yet',
@@ -106,9 +150,11 @@ window.__ModuleLoader__.load({
         'note.copyFailed': 'Copy failed — select the text and copy it by hand.',
         'note.saved': 'Pinned.',
         'note.alreadySaved': 'This reply is already on the board.',
+        'note.unpinned': 'Unpinned; the matching rail marker is back to normal.',
         'note.jumping': 'Paging back to find that message…',
         'note.jumpMissing': 'Reached the start of the conversation without finding that message.',
         'note.storageFailed': 'The browser refused to save it; it lasts only for this page.',
+        'note.noTurn': 'This pin has no turn, so it has no marker on the right',
         'unit.entries': 'pinned',
       },
     }
@@ -150,6 +196,9 @@ window.__ModuleLoader__.load({
       '.akr-pick:hover{background:var(--dsw-alias-button-floating-hover,var(--dsw-alias-bg-layer-2));}',
       '.akr-card-foot{display:flex;align-items:center;gap:2px;padding:4px 6px;',
       'border-top:1px solid var(--dsw-alias-border-l1);flex-wrap:wrap;}',
+      // One quiet line under a card that cannot show its rail marker.
+      '.akr-card-note{flex:none;padding:0 9px 6px;font-size:11.5px;line-height:16px;',
+      'color:var(--dsw-alias-label-secondary);}',
       '.akr-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;',
       'color:var(--dsw-alias-label-secondary);text-align:center;padding:24px 14px;font-size:12.5px;}',
       '.akr-empty-title{color:var(--dsw-alias-label-primary);font-weight:600;}',
@@ -204,6 +253,13 @@ window.__ModuleLoader__.load({
       return h('style', { 'data-dsh-ask-reader': '' }, CSS)
     }
 
+    /** The pin glyph: an outlined star, filled in once that reply is on the board. */
+    function StarGlyph({size, filled}) {
+      return h('svg', {width:size, height:size, viewBox:'0 0 24 24', 'aria-hidden':true,
+        fill:filled ? 'currentColor' : 'none', stroke:'currentColor', strokeWidth:1.7, strokeLinejoin:'round'},
+        h('path', {d:'M12 2.7l2.86 5.79 6.39.93-4.62 4.5 1.09 6.36L12 17.28l-5.72 3 1.09-6.36-4.62-4.5 6.39-.93z'}))
+    }
+
     /** The action glyph: a right arrow, the "send it into the right column" mark. */
     function ArrowGlyph(props) {
       const size = props && props.size ? props.size : 16
@@ -220,7 +276,7 @@ window.__ModuleLoader__.load({
       }))
     }
 
-    // ------------------------------------------------------------- markdown ---
+    // ------------------------------------------- markdown: the pinned text ---
 
     /** Link targets a board can open: same rules as a chat link. */
     function safeHref(raw) {
@@ -569,13 +625,100 @@ window.__ModuleLoader__.load({
       return blocks
     }
 
-    // ---------------------------------------------------------------- store ---
+    // ---------------------------------- board data: one pin's shape ---
 
-    /** One pinned entry; `messageId` is present only for a pinned reply. */
+    /**
+     * One stored row, or null when it cannot be shown. `id`, `text` and a known
+     * `source` are required; an optional `turn` or `color` that is malformed is
+     * dropped rather than trusted, so the turn lookup and the colour picker
+     * derive a sound one in its place.
+     * @param value - one row as parsed from localStorage.
+     * @returns the row with only trustworthy fields, or null.
+     */
     function isEntry(value) {
-      return value !== null && typeof value === 'object'
-        && typeof value.id === 'string'
-        && typeof value.text === 'string'
+      if (value === null || typeof value !== 'object') return null
+      if (typeof value.id !== 'string' || typeof value.text !== 'string') return null
+      if (value.source !== 'reply' && value.source !== 'paste') return null
+      const row = { ...value }
+      if (!(Number.isSafeInteger(row.turn) && row.turn >= 0)) delete row.turn
+      if (!/^#[0-9a-f]{6}$/i.test(row.color || '')) delete row.color
+      return row
+    }
+
+    /**
+     * A bright `#rrggbb` at one hue: the last resort, used only once the whole
+     * palette is taken, so a pinned row is never left without an ink to paint.
+     * @param hue - degrees; wrapped into 0–360.
+     * @returns the colour as #rrggbb.
+     */
+    function hueInk(hue) {
+      const at = ((((hue % 360) + 360) % 360) / 60)
+      const high = 0.72
+      const second = high * (1 - Math.abs(at % 2 - 1))
+      const floor = 0.24
+      const channels = [[high, second, 0], [second, high, 0], [0, high, second],
+        [0, second, high], [second, 0, high], [high, 0, second]][Math.floor(at) % 6]
+      return '#' + channels
+        .map(value => Math.round((value + floor) * 255).toString(16).padStart(2, '0'))
+        .join('')
+    }
+
+    /**
+     * The hue a row is seeded from: golden-angle steps over its turn keep
+     * neighbouring turns far apart, and a row with no turn uses its own id, so
+     * the result never depends on where the row sits on the board.
+     * @returns the hue in degrees.
+     */
+    function hueSeed(row) {
+      if (Number.isSafeInteger(row.turn) && row.turn >= 0) return row.turn * 137
+      let hue = 0
+      for (const mark of String(row.messageId || row.id || '')) hue = (hue * 31 + mark.charCodeAt(0)) % 360
+      return hue
+    }
+
+    /**
+     * The colour each row of one board is drawn with. A row that already stores a
+     * colour keeps it. A reply from before colours were stored takes the next free
+     * palette swatch, so a legacy pin wears one of the same bright colours a new
+     * pin gets rather than a hue of its own; the hand-out walks the colourless
+     * rows in their own seed order, never in list order, so prepending a pin does
+     * not recolour the pins already there. Past the palette the row falls back to
+     * a hue of its own, which is never undefined. A pasted excerpt never reaches
+     * the rail, so it spends no swatch.
+     * @param rows - the stored rows, newest first.
+     * @returns one #rrggbb per reply row, undefined for a paste, in the same order.
+     */
+    function rowColors(rows) {
+      const taken = new Set(rows.map(row => row.color).filter(Boolean))
+      const colors = rows.map(row => row.color)
+      const uncoloured = rows
+        .map((row, index) => ({ row, index }))
+        .filter(({ row }) => !row.color && row.source === 'reply')
+        .sort((a, b) => hueSeed(a.row) - hueSeed(b.row)
+          || (String(a.row.id) < String(b.row.id) ? -1 : String(a.row.id) > String(b.row.id) ? 1 : 0))
+      for (const { row, index } of uncoloured) {
+        const free = RAIL_COLORS.find(swatch => !taken.has(swatch))
+        const color = free === undefined ? hueInk(hueSeed(row)) : free
+        taken.add(color)
+        colors[index] = color
+      }
+      return colors
+    }
+
+    // ------------------------------------------------------------ store ---
+
+    /**
+     * The colour a new row is pinned with: the first bright palette swatch this
+     * board is not using yet, so a pin keeps it for good — deleting another pin
+     * cannot recolour it. A board that already uses every hue takes the next one
+     * along instead of leaving the row without a colour.
+     * @param rows - the board as stored, newest first.
+     * @returns the colour as #rrggbb.
+     */
+    function pinColor(rows) {
+      const used = new Set(rows.map(row => row.color))
+      const free = RAIL_COLORS.find(swatch => !used.has(swatch))
+      return free === undefined ? hueInk(rows.length * 137) : free
     }
 
     /**
@@ -589,15 +732,36 @@ window.__ModuleLoader__.load({
 
       const keyOf = (sessionId) => STORAGE_PREFIX + String(sessionId)
 
-      function read(sessionId) {
+      /**
+       * The rows exactly as stored, validated field by field. A row written
+       * before colours were recorded has none here: that is what tells a write
+       * that it still has a colour to fill in.
+       * @returns the stored rows, newest first.
+       */
+      function readStored(sessionId) {
         try {
           const raw = window.localStorage.getItem(keyOf(sessionId))
           if (!raw) return []
           const parsed = JSON.parse(raw)
-          return Array.isArray(parsed) ? parsed.filter(isEntry) : []
+          return Array.isArray(parsed) ? parsed.map(isEntry).filter(Boolean) : []
         } catch (error) {
           return []
         }
+      }
+
+      /**
+       * The rows a render may use: every reply carries a colour. A row from
+       * before colours existed gets the same deterministic one on every read, so
+       * the rail never paints `background:undefined`.
+       * @returns the stored rows, newest first, each reply with a colour.
+       */
+      function read(sessionId) {
+        const rows = readStored(sessionId)
+        const colors = rowColors(rows)
+        return rows.map((row, index) => {
+          const color = colors[index]
+          return row.color || color === undefined ? row : { ...row, color }
+        })
       }
 
       function entries(sessionId) {
@@ -624,13 +788,17 @@ window.__ModuleLoader__.load({
       return {
         entries,
         /**
-         * Prepend one entry. The merge reads the persisted list, not the render
-         * cache: a write must never replace entries this page has not loaded yet
-         * (a reload between two writes used to be able to drop them).
+         * Prepend one entry, with the colour it will wear from now on. The merge
+         * reads the persisted list, not the render cache: a write must never
+         * replace entries this page has not loaded yet (a reload between two
+         * writes used to be able to drop them).
          */
         add(sessionId, entry) {
           const fresh = read(String(sessionId))
-          const merged = [entry, ...fresh.filter((row) => row.id !== entry.id)]
+          // A pasted excerpt never reaches the rail, so it does not spend a
+          // palette hue the pinned replies can still use.
+          const color = entry.color || (entry.source === 'reply' ? pinColor(fresh) : undefined)
+          const merged = [{ ...entry, color }, ...fresh.filter((row) => row.id !== entry.id)]
           return commit(sessionId, merged.slice(0, ENTRY_LIMIT))
         },
         /** @returns whether it was stored; a removal of an absent entry writes nothing. */
@@ -638,6 +806,26 @@ window.__ModuleLoader__.load({
           const fresh = read(String(sessionId))
           if (!fresh.some((entry) => entry.id === id)) return true
           return commit(sessionId, fresh.filter((entry) => entry.id !== id))
+        },
+        backfill(sessionId, turns) {
+          // History reads are asynchronous. Merge only missing fields into the
+          // latest stored board, never revive deleted pins or replace their text.
+          const latest = readStored(sessionId)
+          // One palette answer for the whole board, so a backfilled row is
+          // stored with the very colour its reads have been showing.
+          const colors = rowColors(latest)
+          let changed = false
+          const next = latest.map((row, index) => {
+            const patch = {}
+            if (needsTurn(row) && turns.has(row.messageId)) patch.turn = turns.get(row.messageId)
+            // A row from before colours were stored gets its own from the shared
+            // palette, so a later pin or a deletion cannot recolour it.
+            if (!row.color && colors[index] !== undefined) patch.color = colors[index]
+            if (Object.keys(patch).length === 0) return row
+            changed = true
+            return { ...row, ...patch }
+          })
+          if (changed) commit(sessionId, next)
         },
         clear(sessionId) {
           return commit(sessionId, [])
@@ -695,7 +883,7 @@ window.__ModuleLoader__.load({
       return plain.length > 60 ? plain.slice(0, 60) + '…' : plain
     }
 
-    /** One finalized assistant reply: its readable text and the time it was written. */
+    /** One finalized assistant reply: its readable text, its turn and the time it was written. */
     function replySnapshot(nodes, messageId) {
       let all = []
       try {
@@ -714,7 +902,7 @@ window.__ModuleLoader__.load({
           .join('\n\n')
           .trim()
         if (text === '') return null
-        return { text, time: Number.isFinite(data.time) ? data.time : undefined }
+        return { text, turn: data.turn, time: Number.isFinite(data.time) ? data.time : undefined }
       }
       return null
     }
@@ -735,16 +923,20 @@ window.__ModuleLoader__.load({
     function useNote() {
       const [note, setNote] = React.useState(null)
       const timer = React.useRef(0)
+      const stop = () => { if (timer.current) { clearTimeout(timer.current); timer.current = 0 } }
       const show = React.useCallback((text, failed) => {
         setNote({ text, failed: failed === true })
-        if (timer.current) clearTimeout(timer.current)
+        stop()
         timer.current = setTimeout(() => { setNote(null); timer.current = 0 }, 6000)
       }, [])
-      React.useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
-      return [note, show]
+      // Drop the line early: the icon's own bubble is only ever on screen while
+      // the pointer rests on it, so leaving takes the text away at once.
+      const hide = React.useCallback(() => { stop(); setNote(null) }, [])
+      React.useEffect(() => () => { stop() }, [])
+      return [note, show, hide]
     }
 
-    // ----------------------------------------------------- icon-row chrome ---
+    // ----------------------- reply actions: the icon row ---
 
     /**
      * The reply action row's geometry, taken from the host's own action buttons
@@ -786,18 +978,38 @@ window.__ModuleLoader__.load({
     const CAN_PORTAL = !!(ReactDOM && typeof ReactDOM.createPortal === 'function' && typeof document !== 'undefined')
 
     /**
+     * The two halves of one action's copy, decided in one place: the glyph it
+     * draws and the label it shows. A star keeps the pin without opening the
+     * column; an arrow always opens it, pinned or not.
+     * @param variant - 'star' or 'arrow'.
+     * @param saved - whether this reply is already on the board.
+     * @returns the glyph and the copy key behind it.
+     */
+    function actionLook(variant, saved) {
+      if (variant === 'star') return { glyph: StarGlyph, label: saved ? 'save.starred' : 'save.quiet' }
+      return { glyph: ArrowGlyph, label: saved ? 'save.open' : 'save.action' }
+    }
+
+    /**
      * One icon-row button: a 28px square whose label appears under it on hover,
      * the same place the row's shipped tooltips put theirs.
-     * @param props - label, click handler, optional transient note.
+     * @param props - variant, label, click handler, optional transient note.
      * @returns the button and, while shown, its floating bubble.
      */
     function IconAction(props) {
       const [hover, setHover] = React.useState(false)
       const [at, setAt] = React.useState(null)
+      // Whether the pointer is resting on the icon, bubble or no bubble. A scroll
+      // can take the bubble away while the pointer stays put, and then no
+      // `mouseenter` follows when the icon comes back into view.
+      const [pointing, setPointing] = React.useState(false)
       const btnRef = React.useRef(null)
       const timer = React.useRef(0)
       const note = props.note
-      const visible = note !== null && note !== undefined ? true : hover
+      // The bubble belongs to the pointer: hovering shows it, leaving hides it.
+      // A note written by a click is not an exception, so moving off the icon
+      // after a pin takes the text away instead of leaving it on screen.
+      const visible = hover
 
       /**
        * Anchor the bubble to the button's box in viewport coordinates. It hangs
@@ -818,37 +1030,65 @@ window.__ModuleLoader__.load({
       }, [props.note])
 
       React.useEffect(() => {
-        if (!visible) { setAt(null); return undefined }
-        measure()
-        const follow = () => { measure() }
+        // Listen while the bubble is up, and while the pointer is on an icon the
+        // scroll can carry out of view and back again.
+        if (!visible) setAt(null)
+        if (!visible && !pointing) return undefined
+        if (visible) measure()
+        /**
+         * Follow the button. A scroll can carry the icon out from under a still
+         * pointer, and then no `mouseleave` ever fires: when the button's whole
+         * box is outside the viewport the bubble leaves by the same path as the
+         * pointer instead of staying parked at its last measured position, and
+         * it comes back by that same path once the icon is in view again without
+         * waiting out the dwell a second time.
+         */
+        const follow = () => {
+          const node = btnRef.current
+          if (node && typeof node.getBoundingClientRect === 'function') {
+            const rect = node.getBoundingClientRect()
+            if (rect.bottom < 0 || rect.top > window.innerHeight) { dismiss(); return }
+            // Back in view with the pointer still on the icon: the bubble
+            // returns at once, unless the dwell has not run yet anyway.
+            if (!visible && pointing && timer.current === 0) { setHover(true); return }
+          }
+          if (visible) measure()
+        }
+        /** A hidden tab is not a hover: the bubble goes with the pointer too. */
+        const onVisibility = () => { if (document.visibilityState === 'hidden') dismiss() }
         window.addEventListener('scroll', follow, true)
         window.addEventListener('resize', follow)
+        document.addEventListener('visibilitychange', onVisibility)
         return () => {
           window.removeEventListener('scroll', follow, true)
           window.removeEventListener('resize', follow)
+          document.removeEventListener('visibilitychange', onVisibility)
         }
-      }, [visible, measure])
+      }, [visible, pointing, measure])
 
       React.useEffect(() => () => { if (timer.current) clearTimeout(timer.current) }, [])
 
       // A short dwell before the label appears: sweeping the pointer across the
       // row should not flash a bubble out of every icon.
       const enter = () => {
+        setPointing(true)
         if (timer.current) clearTimeout(timer.current)
         timer.current = setTimeout(() => { timer.current = 0; setHover(true) }, 260)
       }
-      const leave = () => {
+      /** Take the bubble and the feedback line away; the pointer itself stays on the icon. */
+      const dismiss = () => {
         if (timer.current) { clearTimeout(timer.current); timer.current = 0 }
         setHover(false)
+        // The feedback line goes with the pointer, so hovering again reads the
+        // icon's own label rather than an older "saved" note.
+        if (typeof props.onDismiss === 'function') props.onDismiss()
       }
+      const leave = () => { setPointing(false); dismiss() }
 
-      const text = note ? note.text : (hover ? props.label : null)
+      const text = hover ? (note ? note.text : props.label) : null
       const look = note && note.failed
         ? Object.assign({}, BUBBLE_LOOK, { color: 'var(--dsw-alias-state-error-primary)' })
         : BUBBLE_LOOK
-      // Portalled to the body: a fixed bubble inside the message row would be
-      // clipped by the flow and painted under the composer, which is exactly the
-      // row this icon sits next to.
       // Portalled to the body: a fixed bubble inside the message row would be
       // clipped by the flow and painted under the composer, which is exactly the
       // row this icon sits next to. Without a portal it falls back to a plain
@@ -882,12 +1122,12 @@ window.__ModuleLoader__.load({
           onFocus: () => { setHover(true) },
           onBlur: leave,
           style: hover ? Object.assign({}, actionStyle, actionHoverStyle) : actionStyle,
-        }, h(ArrowGlyph, { size: 17 })),
+        }, h(actionLook(props.variant, props.saved).glyph, { size: 17, filled:props.saved })),
         bubble,
       )
     }
 
-    // ------------------------------------------------------------- the panel ---
+    // ------------------------------ panel: the right column ---
 
     /**
      * Ask about one excerpt: quote it into the Session composer, so the question
@@ -923,6 +1163,8 @@ window.__ModuleLoader__.load({
       const t = props.t
       const sessionId = props.sessionId
       const entries = useEntries(sessionId)
+      // A pin whose turn stayed unknown reads one grey line, not a silent gap.
+      const unresolvedVersion = useUnresolvedVersion()
       const [composing, setComposing] = React.useState(false)
       const [draft, setDraft] = React.useState('')
       const [folded, setFolded] = React.useState([])
@@ -946,9 +1188,21 @@ window.__ModuleLoader__.load({
           blocks: mdBlocks(entry.text),
           stamp: formatStamp(entry.time),
           stampTitle: Number.isFinite(entry.time) ? new Date(entry.time).toLocaleString() : '',
+          // Resolved against the in-memory mark, so a pin the history could not
+          // place explains its missing rail marker instead of hiding the fact.
+          turnUnresolved: needsTurn(entry) && isTurnUnresolved(sessionId, entry.messageId),
         })),
-        [entries],
+        [entries, sessionId, unresolvedVersion],
       )
+
+      // Opening the column is another chance to resolve what the header could
+      // not: the lookup itself is shared per Session, so this cannot pile up.
+      const pendingTurns = JSON.stringify(entries.filter(needsTurn).map((row) => row.messageId).sort())
+      React.useEffect(() => {
+        if (pendingTurns === '[]' || typeof props.recover !== 'function') return undefined
+        props.recover(sessionId, JSON.parse(pendingTurns))
+        return undefined
+      }, [sessionId, pendingTurns, props.recover])
 
       /** The live selection inside this panel, and where to float its action. */
       const readPick = React.useCallback(() => {
@@ -1152,7 +1406,7 @@ window.__ModuleLoader__.load({
               h('span', null, t('empty.hint')),
             )
           : h('div', { className: 'akr-list' },
-              rendered.map(({ entry, blocks, stamp, stampTitle }) => {
+              rendered.map(({ entry, blocks, stamp, stampTitle, turnUnresolved }) => {
                 // Every pin reads in full on arrival; folding is the exception.
                 const open = !folded.includes(entry.id)
                 return h('div', { className: 'akr-card', key: entry.id },
@@ -1164,6 +1418,7 @@ window.__ModuleLoader__.load({
                   h('div', {
                     className: 'akr-body akr-md' + (open ? ' akr-body-open' : ''),
                   }, blocks),
+                  turnUnresolved ? h('div', { className: 'akr-card-note' }, t('note.noTurn')) : null,
                   h('div', { className: 'akr-card-foot' },
                     entry.source === 'paste'
                       ? null
@@ -1216,70 +1471,607 @@ window.__ModuleLoader__.load({
       )
     }
 
-    // --------------------------------------------------------- conversation ---
+    // ---------------------- reply actions: the pin button ---
 
     /** The icon under one finalized reply: pin it, then show the board. */
     function SaveAction(props) {
       const t = props.t
-      const saved = useEntries(props.sessionId).some((entry) => entry.messageId === props.messageId)
+      const star = props.variant === 'star'
+      const entries = useEntries(props.sessionId)
+      // A reply is pinned at most once, and the star reads that pin back so its
+      // second click can take the reply off again. Older boards may hold more
+      // than one row for the same message, so the star clears all of them.
+      const own = entries.filter((entry) => entry.messageId === props.messageId)
+      const saved = own.length > 0
       const nodes = props.useChat((snapshot) => snapshot.nodes)
-      const [note, showNote] = useNote()
+      const [note, showNote, dismissNote] = useNote()
 
       const onClick = () => {
         if (saved) {
-          props.openPanel()
-          showNote(t('note.alreadySaved'), false)
+          // The arrow still reveals the column. The star toggles in place, so
+          // unpinning opens nothing and that turn's rail marker returns to the
+          // native tick on its own, because the rules read the board.
+          if (!star) {
+            props.openPanel()
+            showNote(t('note.alreadySaved'), false)
+            return
+          }
+          let stored = true
+          for (const entry of own) {
+            if (!board.remove(props.sessionId, entry.id)) stored = false
+          }
+          showNote(stored ? t('note.unpinned') : t('note.storageFailed'), !stored)
           return
         }
         const snapshot = replySnapshot(nodes, props.messageId)
         if (snapshot === null) { showNote(t('save.empty'), true); return }
         const stored = board.add(props.sessionId, {
           id: makeId(), title: titleOf(snapshot.text), text: snapshot.text, source: 'reply',
-          messageId: props.messageId, time: snapshot.time === undefined ? Date.now() : snapshot.time,
+          messageId: props.messageId, turn: snapshot.turn, time: snapshot.time === undefined ? Date.now() : snapshot.time,
         })
-        props.openPanel()
+        if (!star) props.openPanel()
         showNote(stored ? t('note.saved') : t('note.storageFailed'), !stored)
       }
 
       return h(IconAction, {
-        label: t(saved ? 'save.open' : 'save.action'),
+        variant: props.variant, saved,
+        label: t(actionLook(props.variant, saved).label),
         onClick,
         note,
+        onDismiss: dismissNote,
       })
     }
 
-    /** The header entry that reveals the column. */
+    // --------- settings: the palette, the rail preferences, their panel ---
+
+    // One native rail button per turn, not per reply. Style its existing tick,
+    // never its hit area, handlers or virtual-list position.
+    // Profile-wide appearance only. Never store these preferences in a board.
+    const PREF_KEY = 'dsh-ask-reader:rail-settings:v1'
+    const PREF_EVENT = 'ask-reader:rail-settings-changed'
+    const DEFAULT_PREFS = { uniformColor: false, color: '#a78bfa', uniformLength: true, width: RAIL_DEFAULT_WIDTH }
+    /** The preference JSON as stored, or an empty string when storage refuses to answer. */
+    const prefsRaw = () => { try { return window.localStorage.getItem(PREF_KEY) || '' } catch { return '' } }
+    /** One preference record with every field of a known type, clamped into range. */
+    function normalizePrefs(value) {
+      const p = value || {}
+      return {
+        uniformColor: p.uniformColor === true,
+        color: /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color.toLowerCase() : DEFAULT_PREFS.color,
+        uniformLength: p.uniformLength !== false,
+        width: Number.isFinite(p.width) ? Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(p.width))) : DEFAULT_PREFS.width,
+      }
+    }
+    /** Parse stored preference JSON; anything unreadable reads as the defaults. */
+    function decodePrefs(raw) {
+      try { return normalizePrefs(JSON.parse(raw)) } catch { return DEFAULT_PREFS }
+    }
+    /** Merge one change into the stored preferences, tell this window; @returns whether it was stored. */
+    function writePrefs(change) {
+      try {
+        window.localStorage.setItem(PREF_KEY, JSON.stringify(normalizePrefs({ ...decodePrefs(prefsRaw()), ...change })))
+      } catch { return false }
+      window.dispatchEvent(new Event(PREF_EVENT))
+      return true
+    }
+    /** Subscribe to preference changes here and, through `storage`, in the app's other windows. */
+    function subscribePrefs(fn) {
+      const crossWindow = e => { if (e.key === PREF_KEY || e.key === null) fn() }
+      window.addEventListener(PREF_EVENT, fn)
+      window.addEventListener('storage', crossWindow)
+      return () => { window.removeEventListener(PREF_EVENT, fn); window.removeEventListener('storage', crossWindow) }
+    }
+    /** The live appearance preferences of this device. */
+    function useRailPrefs() {
+      const raw = React.useSyncExternalStore(subscribePrefs, prefsRaw, prefsRaw)
+      return React.useMemo(() => decodePrefs(raw), [raw])
+    }
+    /** A 32-bit hash of a pin's own id, so its length never depends on its neighbours; @returns 0 … 2^32-1. */
+    function railSeed(key) {
+      let hash = 0
+      for (const mark of String(key === undefined ? '' : key)) hash = (hash * 31 + mark.charCodeAt(0)) >>> 0
+      return hash
+    }
+    // The native hit area is 28px and the longest native (active) tick is
+    // 20px. Keep every width visibly above that without enlarging the button.
+    /**
+     * The width one pinned tick is drawn at. A non-uniform rail cycles the steps
+     * off the pin's own identity — its row id, else its stored colour — so
+     * deleting another pin cannot re-lay the widths of the survivors.
+     */
+    const railWidth = (prefs, key) => prefs.uniformLength
+      ? prefs.width
+      : RAIL_STEPS[railSeed(key) % RAIL_STEPS.length]
+
+    // Only the two reading-board preferences use this switch skin; retain the
+    // native checkbox input for its label target, keyboard and checked state.
+    const SWITCH_CSS = `
+      input.akr-rail-switch {
+        appearance:none; -webkit-appearance:none; position:relative; display:inline-block;
+        flex:0 0 36px; width:36px; height:20px; box-sizing:border-box; margin:0;
+        padding:0; border:0; border-radius:8px; background:#c8c9cc; cursor:pointer;
+        transition:background-color 140ms ease;
+      }
+      input.akr-rail-switch::before {
+        content:""; position:absolute; top:3px; left:3px; width:14px; height:14px;
+        border-radius:5px; background:#fff; transform:translateX(0);
+        transition:transform 140ms ease;
+      }
+      input.akr-rail-switch:checked {background:#0f1115}
+      input.akr-rail-switch:checked::before {transform:translateX(16px)}
+      input.akr-rail-switch:focus-visible {outline:2px solid var(--dsw-focus-ring-color,#1875e2);outline-offset:3px}
+      @media (prefers-reduced-motion:reduce){input.akr-rail-switch,input.akr-rail-switch::before{transition:none}}
+      @media (forced-colors:active){
+        input.akr-rail-switch{forced-color-adjust:none;background:GrayText}
+        input.akr-rail-switch:checked{background:Highlight}
+        input.akr-rail-switch::before{background:Canvas}
+        input.akr-rail-switch:checked::before{background:HighlightText}
+      }
+    `
+    /** Settings → Reading board: the two appearance switches and a live preview of the rail. */
+    function RailSettings({ t }) {
+      const prefs = useRailPrefs()
+      const [failed, setFailed] = React.useState(false)
+      const set = patch => setFailed(!writePrefs(patch))
+      const rowStyle = { display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, padding:'14px 0', borderBottom:'1px solid var(--dsw-alias-border-l2, #8884)' }
+      const hint = { display:'block', fontSize:12, color:'var(--dsw-alias-label-secondary)', marginTop:4 }
+      const row = (title, detail, control) => h('label', {style:rowStyle},
+        h('span', null, h('strong', null, t(title)), detail && h('small', {style:hint}, t(detail))), control)
+      const toggle = (key, title, detail) => row(title, detail, h('input', {
+        type:'checkbox', role:'switch', className:'akr-rail-switch', name:key, checked:prefs[key], 'aria-label':t(title),
+        onChange:e=>set({[key]:e.target.checked}),
+      }))
+      const tick = (w, color, thick) => h('i', { 'aria-hidden':true, style:{
+        display:'inline-block', flex:'none', width:w, height:thick, background:color, borderRadius:4,
+      }})
+      // The preview shows the cycle itself, so its four marks step through the
+      // lengths a pin can wear rather than hashing four sample identities.
+      const demoWidth = i => prefs.uniformLength ? prefs.width : RAIL_STEPS[i % RAIL_STEPS.length]
+      const demo = (title, marks) => h('div', {style:{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12}},
+        h('span', null, t(title)), h('span', {style:{display:'grid',justifyItems:'end',gap:6,width:32}}, ...marks))
+      return h('section', {style:{maxWidth:600, padding:'8px 12px', color:'var(--dsw-alias-label-primary)'}},
+        h('style', null, SWITCH_CSS),
+        h('h2', {style:{margin:'0 0 4px'}}, t('rail.heading')),
+        h('p', {style:{...hint,marginBottom:12}}, t('rail.intro')),
+        toggle('uniformColor','rail.uniformColor','rail.colorHint'),
+        prefs.uniformColor && row('rail.color', null, h('input', {
+          type:'color', name:'color', value:prefs.color, 'aria-label':t('rail.color'), onChange:e=>set({color:e.target.value}),
+        })),
+        toggle('uniformLength','rail.uniformLength','rail.lengthHint'),
+        prefs.uniformLength && row('rail.width', null, h('span', {style:{display:'flex',alignItems:'center',gap:8}},
+          h('input', {type:'range',name:'width',min:RAIL_MIN,max:RAIL_MAX,step:1,value:prefs.width,'aria-label':t('rail.width'),
+            onChange:e=>set({width:Number(e.target.value)})}), h('output', null, prefs.width + ' px'))),
+        h('div', {style:{marginTop:18,padding:14,border:'1px solid var(--dsw-alias-border-l2, #8884)',borderRadius:10,display:'grid',gap:12}},
+          h('strong', null, t('rail.preview')),
+          demo('rail.ordinary', [tick(RAIL_TICK_WIDTH,'var(--dsw-alias-label-secondary,#888)',RAIL_TICK_HEIGHT)]),
+          demo('rail.pinned', [0,1,2,3].map(i=>tick(demoWidth(i),prefs.uniformColor ? prefs.color : RAIL_COLORS[i],RAIL_PINNED_HEIGHT)))),
+        failed && h('p',{role:'alert'},t('rail.failed')))
+    }
+
+    /**
+     * One attribute value for a selector. `CSS.escape` is not guaranteed — an
+     * embedder can withhold it and a throw here would take the session header
+     * down — so a local quote-and-backslash escape stands in for it, in the same
+     * defensive style as the preference reads.
+     * @returns the quoted, escaped attribute value.
+     */
+    function cssAttr(value) {
+      const text = String(value)
+      try {
+        if (window.CSS && typeof window.CSS.escape === 'function') return '"' + window.CSS.escape(text) + '"'
+      } catch (error) { /* fall through to the local escape */ }
+      return '"' + text.replace(/["\\]/g, '\\$&') + '"'
+    }
+
+    // ---------------- host rail css: the rules painted on the native rail ---
+
+    /**
+     * The selectors that point at one turn's mark. Two independent spellings are
+     * emitted: the template read off the live rail (locale-proof, works even when
+     * the host dictionary is not available to this plugin) and the plugin's own
+     * copy of the host label (works when the rail is not painted yet).
+     * @param dom - the rail this Session painted.
+     * @returns distinct `button[data-index][aria-label=...]` selectors, possibly empty.
+     */
+    function railTargets(dom, turn, chatT) {
+      const out = []
+      const add = selector => { if (!out.includes(selector)) out.push(selector) }
+      for (const [prefix, suffix] of dom.templates) {
+        add(dom.scope + ' button[data-index][aria-label=' + dom.attr(prefix + turn + suffix) + ']')
+      }
+      for (const key of ['jump', 'jumpLoad']) {
+        const label = chatT('chat.turnNavigation.' + key, { turn })
+        // A locale that is not bound yet answers with the key itself; a rule built
+        // from that can never match, so it is not worth writing.
+        if (typeof label === 'string' && label !== '' && !label.startsWith('chat.')) {
+          add(dom.scope + ' button[data-index][aria-label=' + dom.attr(label) + ']')
+        }
+      }
+      return out
+    }
+
+    /**
+     * How the host spells "turn N" on the rail: each mark's aria-label is that
+     * template with its own number filled in. Read from the marks on screen, so
+     * the pin rules never depend on this plugin's copy of the chat dictionary.
+     * @returns [prefix, suffix] pairs; empty when the rail is not on screen.
+     */
+    function railLabelTemplates(scope) {
+      let marks
+      try { marks = document.querySelectorAll(scope + ' button[data-index][aria-label]') } catch (error) { return [] }
+      const seen = new Map()
+      for (const mark of marks) {
+        const label = mark.getAttribute('aria-label') || ''
+        // One number only: anything else is not a turn template we can rebuild.
+        const runs = label.match(/\d+/g)
+        if (!runs || runs.length !== 1) continue
+        const at = label.indexOf(runs[0])
+        const prefix = label.slice(0, at)
+        const suffix = label.slice(at + runs[0].length)
+        seen.set(prefix + '\u0000' + suffix, [prefix, suffix])
+      }
+      return Array.from(seen.values())
+    }
+
+    /**
+     * This Session's rail, read once per render: the scope selector that keeps a
+     * rule inside one conversation, the attribute escaper the rule is built
+     * with, and the label templates the painted marks teach us.
+     * @returns the scope, the escaper and the [prefix, suffix] templates.
+     */
+    function railDom(sessionId) {
+      const attr = cssAttr
+      const scope = '[data-conversation-session=' + attr(sessionId) + '] nav'
+      // One DOM read per render, shared by every pinned turn.
+      return { scope, attr, templates: railLabelTemplates(scope) }
+    }
+
+    /**
+     * The turns this board marks on the rail, oldest first, each with the colour
+     * its row was pinned with and the row's own id, so a marker's length can be
+     * taken from the pin rather than from its place in this list. This is the
+     * only place that reads a chat node's turn, so the rule builder sees turns,
+     * colours and ids and nothing about nodes. Existing boards have no turn
+     * field: known messages are resolved through their node, and an unloaded
+     * reply's position is never guessed from its text or the DOM index.
+     * @param entries - the board, newest first.
+     * @param nodes - the conversation's node table, when it has one.
+     * @returns `{ turn, color, id }`, oldest first.
+     */
+    function turnsOf(entries, nodes) {
+      const claimed = new Map()
+      const turnless = new Map()
+      for (const entry of entries) {
+        if (entry.source !== 'reply' || !entry.messageId) continue
+        const pin = { color: entry.color, id: entry.id }
+        if (Number.isSafeInteger(entry.turn) && entry.turn >= 0) {
+          if (!claimed.has(entry.turn)) claimed.set(entry.turn, pin)
+        } else {
+          turnless.set(entry.messageId, pin)
+        }
+      }
+      if (turnless.size && nodes) {
+        try {
+          for (const node of nodes.values()) {
+            const data = node && node.data
+            const messageId = data && data.finalNode && data.finalNode.messageId
+            if (!turnless.has(messageId)) continue
+            if (!(Number.isSafeInteger(data.turn) && data.turn >= 0)) continue
+            if (!claimed.has(data.turn)) claimed.set(data.turn, turnless.get(messageId))
+          }
+        } catch (error) { /* a missing node table only costs the extra turns */ }
+      }
+      // The board prepends new pins; oldest first keeps the rules in reading order.
+      return Array.from(claimed, ([turn, pin]) => ({ turn, color: pin.color, id: pin.id })).reverse()
+    }
+
+    /**
+     * The stylesheet that colours this Session's pinned turns on the host rail.
+     * Each rule styles the mark's existing tick, never its hit area, handlers or
+     * virtual-list position; the colour and the length are the pin's own.
+     * @param input - sessionId, entries, nodes, chatT and prefs of this render.
+     * @returns the CSS rules; empty when no pinned turn can be spelled.
+     */
+    function railRules({ sessionId, entries, nodes, chatT, prefs }) {
+      const dom = railDom(sessionId)
+      /** The rail selectors that point at one turn's mark. */
+      const targetsFor = turn => railTargets(dom, turn, chatT)
+      // Multiple replies in a turn share a mark, so a turn is styled once.
+      return turnsOf(entries, nodes).map(({ turn, color, id }) => {
+        const targets = targetsFor(turn)
+        // No usable spelling for this turn (rail not painted and no dictionary
+        // yet): write nothing rather than an invalid empty :is().
+        if (!targets.length) return ''
+        const match = ':is(' + targets.join(',') + ')'
+        return match + '::before{width:' + railWidth(prefs, id || color) + 'px;height:' + RAIL_PINNED_HEIGHT + 'px;border-radius:4px;transform:translateY(-50%);background:'
+          + (prefs.uniformColor ? prefs.color : color) + ';opacity:1}'
+          + match + '[aria-current="true"]::before{box-shadow:inset 0 0 0 1px var(--dsw-alias-label-primary,currentColor)}'
+      }).filter(Boolean).join('\n')
+    }
+
+    /** Whether this row is a pinned reply the board still has to place on a turn. */
+    function needsTurn(row) {
+      return row.source === 'reply' && typeof row.messageId === 'string' && row.messageId !== ''
+        && !(Number.isSafeInteger(row.turn) && row.turn >= 0)
+    }
+
+    // ---------------------- turn lookup: which message sits on which turn ---
+
+    // Pins whose turn the history read could not place. Memory only, never
+    // persisted: the card says why the right-hand marker is missing, and a reload
+    // simply asks the history again.
+    const unresolvedTurns = new Map()
+    const unresolvedListeners = new Set()
+    let unresolvedVersion = 0
+
+    /** Replace one Session's unknown-turn set; an empty list clears it. */
+    function markUnresolved(sessionId, ids) {
+      const key = String(sessionId)
+      const next = new Set(ids)
+      const current = unresolvedTurns.get(key)
+      if (current && current.size === next.size && Array.from(next).every((id) => current.has(id))) return
+      if (next.size === 0) unresolvedTurns.delete(key)
+      else unresolvedTurns.set(key, next)
+      unresolvedVersion += 1
+      for (const listener of Array.from(unresolvedListeners)) {
+        try { listener() } catch (error) { /* keep the other readers */ }
+      }
+    }
+
+    /** Whether this pin still has no turn after a history read came back empty. */
+    function isTurnUnresolved(sessionId, messageId) {
+      const set = unresolvedTurns.get(String(sessionId))
+      return !!set && set.has(String(messageId))
+    }
+
+    /** Listen for a change in which pins a lookup has called unresolvable; @returns the unsubscribe. */
+    function subscribeUnresolved(listener) {
+      unresolvedListeners.add(listener)
+      return () => { unresolvedListeners.delete(listener) }
+    }
+
+    const unresolvedSnapshot = () => unresolvedVersion
+
+    /** Re-render the board when a lookup starts or stops explaining a pin. */
+    function useUnresolvedVersion() {
+      return React.useSyncExternalStore(subscribeUnresolved, unresolvedSnapshot, unresolvedSnapshot)
+    }
+
+    /** How many messages the conversation holds, whatever shape its table has. */
+    function countNodes(nodes) {
+      try {
+        if (!nodes) return 0
+        if (Number.isFinite(nodes.size)) return nodes.size
+        const all = typeof nodes.values === 'function' ? nodes.values() : []
+        return Number.isFinite(all && all.length) ? all.length : Array.from(all || []).length
+      } catch (error) {
+        return 0
+      }
+    }
+
+    /** An abort handle; a browser without AbortController gets an inert one. */
+    function makeAbort() {
+      try {
+        if (typeof AbortController === 'function') return new AbortController()
+      } catch (error) { /* fall through to the inert handle */ }
+      return {
+        abort() { this.signal.aborted = true },
+        signal: { aborted: false },
+      }
+    }
+
+    /** Said once: a missing history service must not fill the console on every retry. */
+    let historyQuiet = false
+
+    /**
+     * The history reader, resolved at call time. The plugin mounts on `slots`
+     * alone, so `remote` and `sessions` may arrive late or never; asking again on
+     * the next lookup is what lets a late arrival be picked up.
+     * @returns the session history service, or undefined when it is not there.
+     */
+    function historyService(ctx) {
+      const read = (name) => {
+        try { return typeof ctx.get === 'function' ? ctx.get(name) : undefined } catch (error) { return undefined }
+      }
+      const remote = read('remote')
+      const session = (remote && remote.session) || read('remote.session')
+      return session && typeof session.events === 'function' ? session : undefined
+    }
+
+    /**
+     * Where this Session's events live: the subagent child when the sessions
+     * service names one, otherwise the Session itself. A missing sessions service
+     * only costs the subagent hop, never the lookup.
+     */
+    function historyAddress(ctx, sessionId) {
+      try {
+        const sessions = typeof ctx.get === 'function' ? ctx.get('sessions') : undefined
+        const child = sessions && typeof sessions.subagentAddress === 'function'
+          ? sessions.subagentAddress(sessionId)
+          : undefined
+        if (child) return { kind: 'subagent', ...child }
+      } catch (error) { /* a plain session address is always usable */ }
+      return { kind: 'session', sessionId }
+    }
+
+    // Read passive pages at one fixed cut: do not move the transcript, load
+    // older rows into the UI, or match by ambiguous reply text.
+    async function recoverTurns(ctx, sessionId, ids, signal) {
+      const remote = historyService(ctx)
+      // No reader means no lookup, not a crash: the board has its own line about
+      // a pin whose turn stayed unknown.
+      if (remote === undefined) {
+        if (!historyQuiet) {
+          historyQuiet = true
+          console.info('[reading-board] History lookup unavailable: the session history service is not mounted.')
+        }
+        return
+      }
+      const address = historyAddress(ctx, sessionId)
+      const aborted = () => !!(signal && signal.aborted)
+      const remaining = new Set(ids)
+      const found = new Map()
+      let throughSeq, beforeSeq
+      try {
+        while (remaining.size && !aborted()) {
+          const request = { address, maxMessages: 30 }
+          if (beforeSeq !== undefined) Object.assign(request, { beforeSeq, throughSeq })
+          const reply = await remote.events(request, signal)
+          if (!reply.ok || aborted()) break
+          const page = reply.value
+          if (throughSeq === undefined) throughSeq = page.cursor
+          for (const {event} of page.records) {
+            if (event?.type !== 'assistant/message') continue
+            const turn = event.data?.turn, id = event.data?.message?.id
+            if (Number.isSafeInteger(turn) && turn >= 0 && remaining.delete(id)) found.set(id, turn)
+          }
+          const first = page.records[0]?.event?.seq
+          if (!page.hasMore || !Number.isSafeInteger(first) || first <= 0
+            || (beforeSeq !== undefined && first >= beforeSeq)) break
+          beforeSeq = first
+        }
+      } finally {
+        if (!aborted() && found.size) board.backfill(sessionId, found)
+      }
+    }
+
+    /** The header entry keeps the rail in sync even with the board closed. */
     function HeaderEntry(props) {
-      return h(IconAction, {
+      const entries = useEntries(props.sessionId)
+      const nodes = props.useChat(snapshot => snapshot.nodes)
+      const unresolved = JSON.stringify(entries.filter(needsTurn).map(row => row.messageId).sort())
+      // Three moments ask for one walk: this mount, a pin list that still holds
+      // an unresolved row, and a conversation that has loaded more messages (a
+      // pin outside the old window may be placeable now). The walk is shared per
+      // Session, so these moments cannot start parallel paging.
+      const nodeCount = countNodes(nodes)
+      React.useEffect(() => {
+        if (unresolved === '[]' || typeof props.recover !== 'function') return undefined
+        props.recover(props.sessionId, JSON.parse(unresolved))
+        return undefined
+      }, [props.sessionId, unresolved, nodeCount, props.recover])
+      const prefs = useRailPrefs()
+      const rules = railRules({ sessionId: props.sessionId, entries, nodes, chatT: props.chatT, prefs })
+      // The rule set is read off the rail's painted DOM. On a first frame that
+      // DOM can still be empty and the chat locale unbound, so nothing is
+      // written; one frame later the rail is there, so rebuild exactly once.
+      // The state value only exists to make that one re-render happen, and the
+      // ref keeps a second frame from being asked for.
+      const [, setRailRebuild] = React.useState(0)
+      const rebuilt = React.useRef(false)
+      // Mount only: any later rule set comes from the next render anyway.
+      React.useEffect(() => {
+        if (rules !== '' || rebuilt.current) return undefined
+        const wanted = entries.some((entry) => entry.source === 'reply'
+          && Number.isSafeInteger(entry.turn) && entry.turn >= 0)
+        if (!wanted) return undefined
+        rebuilt.current = true
+        let frame = 0
+        try { frame = window.requestAnimationFrame(() => setRailRebuild((value) => value + 1)) } catch (error) { frame = 0 }
+        return () => { if (frame) try { window.cancelAnimationFrame(frame) } catch (error) { /* already gone */ } }
+      }, [])
+      return h(React.Fragment, null, rules ? h('style', null, rules) : null, h(IconAction, {
         label: props.t('header.open'),
         onClick: () => { props.openPanel() },
         note: null,
-      })
+      }))
     }
 
     // ------------------------------------------------------------ the plugin ---
 
     return {
       name: 'dsh-ask-reader',
+      // Only the service the plugin cannot live without: every registration needs
+      // `slots`. The history reader is resolved per lookup and the locale at apply
+      // time, so an absent `remote`, `sessions` or locale degrades the rail and
+      // the copy instead of taking the whole plugin — and the board — off screen.
       inject: ['slots'],
       apply(ctx) {
-        /** Resolved copy; replaced once the locale service answers. */
+        /**
+         * One history walk per Session at a time. The header, the column opening
+         * and a growing conversation all ask for the same rows, so a running
+         * walk absorbs the new ids instead of starting a second paging loop, and
+         * a single controller covers that attempt.
+         * @returns a promise that settles when this walk is over.
+         */
+        const lookups = new Map()
+        const recover = (sessionId, ids) => {
+          const key = String(sessionId)
+          const running = lookups.get(key)
+          if (running) {
+            for (const id of ids) running.ids.add(id)
+            return running.promise
+          }
+          const controller = makeAbort()
+          const attempt = { controller, ids: new Set(ids), promise: null }
+          lookups.set(key, attempt)
+          attempt.promise = recoverTurns(ctx, key, attempt.ids, controller.signal)
+            // Whether the walk ran to its end: only a completed walk may call a
+            // pin unresolvable. A failed one leaves every pin unmarked, so a
+            // later attempt can still place it.
+            .then(() => true, (error) => {
+              console.warn('[reading-board] History lookup failed; will retry on the next visit.', error instanceof Error ? error.message : 'unknown error')
+              return false
+            })
+            .then((completed) => {
+              if (!completed || lookups.get(key) !== attempt) return
+              // Whatever is still turn-less after the walk stays marked, so its
+              // card explains the missing marker rather than staying silent.
+              const still = Array.from(attempt.ids).filter((id) => {
+                const row = board.entries(key).find((entry) => entry.messageId === id)
+                return row === undefined || needsTurn(row)
+              })
+              markUnresolved(key, still)
+            })
+            .finally(() => {
+              if (lookups.get(key) === attempt) lookups.delete(key)
+            })
+          return attempt.promise
+        }
+        // A teardown abandons any walk still paging: nobody wants those pages now.
+        if (typeof ctx.effect === 'function') {
+          ctx.effect(() => () => {
+            for (const attempt of Array.from(lookups.values())) attempt.controller.abort()
+            lookups.clear()
+          }, 'reading-board: history lookups')
+        }
+
+        let railTranslate = key => key
         let translate = (key) => DICT.zh[key] || key
 
-        ctx.inject(['locale'], (scope) => {
-          const locale = scope.get('locale')
-          if (!locale || typeof locale.register !== 'function' || typeof locale.bind !== 'function') return
-          locale.register(NS, { zh: DICT.zh, en: DICT.en })
-          const bound = locale.bind(NS)
-          translate = (key) => {
+        // The locale is resolved here rather than declared, so a missing locale
+        // service cannot stop the plugin mounting. Anything unusable leaves the
+        // built-in dictionary and the pass-through railTranslate in place, and the
+        // rail's DOM-template path carries its own labels regardless.
+        try {
+          const locale = (() => {
             try {
-              const value = bound(key)
-              return typeof value === 'string' && value.length > 0 ? value : (DICT.zh[key] || key)
-            } catch (error) {
+              const resolved = typeof ctx.get === 'function' ? ctx.get('locale') : undefined
+              return resolved || ctx.locale
+            } catch (error) { return undefined }
+          })()
+          if (locale && typeof locale.register === 'function' && typeof locale.bind === 'function') {
+            // Scoped so a re-applied plugin gives its namespace back, and never
+            // fatal: a duplicate registration just leaves the built-in copy in use.
+            const register = () => {
+              try { return locale.register(NS, { zh: DICT.zh, en: DICT.en }) } catch (error) { return () => {} }
+            }
+            if (typeof ctx.effect === 'function') ctx.effect(register, 'reading-board: dictionaries')
+            else register()
+            railTranslate = locale.bind('chat')
+            const bound = locale.bind(NS)
+            translate = (key) => {
+              try {
+                const value = bound(key)
+                // A miss comes back as the key itself, so the key is not copy.
+                if (typeof value === 'string' && value !== '' && value !== key) return value
+              } catch (error) { /* fall through to the built-in copy */ }
               return DICT.zh[key] || key
             }
           }
-        })
+        } catch (error) {
+          console.warn('[reading-board] Locale unavailable; using built-in copy.', error instanceof Error ? error.message : 'unknown error')
+        }
 
         const t = (key) => translate(key)
 
@@ -1300,10 +2092,17 @@ window.__ModuleLoader__.load({
           }
         }
 
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section', id: 'ask-reader-settings', order: 65,
+          label: () => t('tab.title'), inject: () => ({ t }),
+        }, RailSettings))
+
         ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
           name: 'sidebar.right.pane.tab',
           key: TAB_ID,
-          inject: () => ({ t }),
+          // Opening the column is the second moment that may resolve a pin's
+          // turn, so the panel can ask for the same shared lookup.
+          inject: () => ({ t, recover }),
         }, ReaderPanel))
 
         ctx.inject(['sidebarRightTabs'], (scope) => {
@@ -1330,7 +2129,13 @@ window.__ModuleLoader__.load({
           id: 'ask-reader-save',
           order: 30,
           label: () => t('save.action'),
-          inject: (sessionId) => ({ t, sessionId, openPanel }),
+          inject: (sessionId) => ({ t, sessionId, openPanel, variant: 'arrow' }),
+        }, SaveAction))
+
+        ctx.slots.inject('conversation.chat.assistant-actions', () => ctx.slots.register({
+          name: 'conversation.chat.assistant-actions', id: 'ask-reader-quiet', order: 31,
+          label: () => t('save.quiet'),
+          inject: (sessionId) => ({ t, sessionId, variant: 'star' }),
         }, SaveAction))
 
         ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
@@ -1338,7 +2143,7 @@ window.__ModuleLoader__.load({
           id: 'ask-reader-open',
           order: 25,
           label: () => t('header.open'),
-          inject: () => ({ t, openPanel }),
+          inject: (sessionId) => ({ t, sessionId, openPanel, recover, chatT: (key, params) => railTranslate(key, params) }),
         }, HeaderEntry))
       },
     }

@@ -8,7 +8,7 @@ A reply pinned on the right, rendered as Markdown beside the conversation — he
 
 ![The reading board with a pinned reply rendered as Markdown](assets/panel.png)
 
-The entry point — the arrow action in the row under a finished reply (its label appears on hover, laid out like the row's other icon buttons):
+The entry points — the two icon actions in the row under a finished reply (each label appears on hover only, laid out like the row's other icon buttons):
 
 ![The reading-board action in a finished reply's action row](assets/action-row.png)
 
@@ -18,7 +18,9 @@ Long answers are easier to work through beside the chat than in it: the board ke
 
 ## Use
 
-1. **Pin.** Under any finished assistant reply, click the arrow icon (hover shows “Pin to reading board”). The right column opens on the **Reading board** tab.
+1. **Pin.** A finished assistant reply carries two icon actions, and they are the entry points:
+   - **☆ star — “Pin to the reading board”.** Pins the reply and leaves the right column alone; nothing opens. Once the reply is pinned the ☆ is filled; clicking the ★ again unpins, so the star goes back to ☆, that turn's rail marker goes back to a normal tick, and the column still does not open.
+   - **→ arrow — “Pin to reading board”.** Pins the reply and opens the right column on the **Reading board** tab. On a reply that is already pinned it only opens the column, and says the reply is already on the board.
    - Or open the board from the arrow icon in the session header, and paste arbitrary text with **+ Paste text** at the bottom of the panel.
 2. **Read.** Pins render as Markdown — headings, lists, blockquotes, tables, syntax-coloured fenced code, bold/italic/inline code/links — not as source. Cards are expanded in full; **Collapse** folds one back to a preview.
    Each card's head shows when its message was written — the clock alone for today, `MM-DD HH:mm` for another day, and the year too once it is not this year — and a **Jump** button scrolls the conversation back to the message the pin came from.
@@ -26,7 +28,12 @@ Long answers are easier to work through beside the chat than in it: the board ke
 
 ## Behaviour
 
-- Pins live in browser `localStorage`, one set per session; a reload keeps them, clearing site data removes them.
+- Pins live in browser `localStorage`, one set per session; a reload keeps them, clearing site data removes them. The marker appearance in **Settings → Reading board** is the one exception: those preferences are stored once for the whole device, so a change there applies to every session. That change also reaches the app's other windows and sessions on this device at once, without a reload.
+- The two reply icons are the entry points: the star pins in place and toggles the pin off again, the arrow pins and opens the column.
+- A pinned turn's tick on the right edge of the conversation — the turn navigator — gets longer, thicker and brightly coloured: 26 px wide by default and 4 px tall, against the 20 px the longest normal tick reaches. Each pinned turn takes its own bright colour. This colouring needs the turn to be loaded in the transcript: markers exist only for turns that are currently loaded, and several pinned replies inside one turn share that turn's single mark.
+- **Settings → Reading board** is where that appearance is set, and it does nothing else: **Use one color** (with a colour picker while it is on), **Use one length** (with a 22–28 px slider while it is on), and a preview of the effect. Even the shortest pin marker is longer than a normal tick.
+- Pins written before turn numbers were recorded carry none. For those the plugin reads the session history — passively, a page at a time, and only until it has what it needs — to learn which turn the pin belongs to, so its marker can be coloured. When that lookup cannot find it, the marker is simply absent.
+- The label under an icon action is a bubble, and it is visible only while the pointer is on that icon; the feedback line a click produces goes as soon as the pointer leaves.
 - Pins hold at most 40 entries per session; the oldest is dropped past that.
 - Every write merges against what is already stored rather than the in-page cache, so a reload between two writes cannot drop a pin.
 - Quotes are capped: 2000 characters from a reply (that reply is already in the session log), 6000 from a pasted excerpt. The overflow is marked `… (truncated)`.
@@ -52,7 +59,7 @@ Or, in DSH Desktop, **Settings → Plugins → Add plugin** and paste either add
 
 | Path | Role |
 | --- | --- |
-| `client.js` | The whole browser half: tab type, panel body, Markdown renderer, reply action, header entry |
+| `client.js` | The whole browser half: tab type, panel body, Markdown renderer, the two reply actions, the settings section, the header entry |
 | `index.js` | Host half (empty — the bundle row needs a module) |
 | `cordis.patch.yml` | Loader row inserted by the bundle |
 | `locale/*.json` | Plugin Manager title/description |
