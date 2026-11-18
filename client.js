@@ -1058,15 +1058,24 @@ window.__ModuleLoader__.load({
         }
         const reveal = () => {
           const key = anchorKey()
-          if (key === '') return false
+          if (key === '') return null
           const row = document.querySelector('[data-chat-anchor-key="' + key.replace(/["\\]/g, '\\$&') + '"]')
-          if (row === null || typeof row.scrollIntoView !== 'function') return false
+          if (row === null || typeof row.scrollIntoView !== 'function') return null
           row.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-          return true
+          return row
         }
-        if (reveal()) return
+        const row = reveal()
+        if (row !== null) {
+          // A running turn keeps pulling the column to its tail; assert the jump
+          // once more after that follow settles.
+          setTimeout(() => { try { row.scrollIntoView({ block: 'center', inline: 'nearest' }) } catch (error) { /* gone */ } }, 260)
+          return
+        }
         // A row that is paging in mounts a frame later.
-        setTimeout(() => { if (!reveal()) showNote(t('note.jumpMissing'), true) }, 160)
+        setTimeout(() => {
+          const later = reveal()
+          if (later === null) showNote(t('note.jumpMissing'), true)
+        }, 160)
       }
 
       /** Hand one picked passage to the composer and drop the selection. */
