@@ -1090,10 +1090,18 @@ window.__ModuleLoader__.load({
         showNote(t('note.jumping'), false)
         const deadline = Date.now() + 15000
         let pages = 0
+        let seen = -1
+        let stalls = 0
         const step = () => {
           const row = reveal('instant')
           if (row !== null) { settle(row); return }
-          if (Date.now() > deadline || pages >= 60 || !loadOlder()) {
+          // Stop when the conversation stops growing: the older-history control
+          // has nothing left, so further clicks only burn time.
+          let count = 0
+          try { count = chatNodes.values().length } catch (error) { count = seen }
+          if (count === seen) stalls += 1
+          else { stalls = 0; seen = count }
+          if (Date.now() > deadline || pages >= 60 || stalls >= 4 || !loadOlder()) {
             showNote(t('note.jumpMissing'), true)
             return
           }
