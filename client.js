@@ -260,6 +260,19 @@ window.__ModuleLoader__.load({
         h('path', {d:'M12 2.7l2.86 5.79 6.39.93-4.62 4.5 1.09 6.36L12 17.28l-5.72 3 1.09-6.36-4.62-4.5 6.39-.93z'}))
     }
 
+    /** The board's own mark: a bookmark ribbon, used by the header and the guide card. */
+    function BookmarkGlyph(props) {
+      const size = props && props.size ? props.size : 16
+      return h('svg', {
+        width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+        'aria-hidden': 'true', className: props && props.className,
+      },
+      h('path', {
+        d: 'M4.35 2.6h7.3a.75.75 0 0 1 .75.75v10.15l-4.4-2.85-4.4 2.85V3.35a.75.75 0 0 1 .75-.75z',
+        stroke: 'currentColor', strokeWidth: 1.4, strokeLinejoin: 'round', strokeLinecap: 'round',
+      }))
+    }
+
     /** The action glyph: a right arrow, the "send it into the right column" mark. */
     function ArrowGlyph(props) {
       const size = props && props.size ? props.size : 16
@@ -987,6 +1000,7 @@ window.__ModuleLoader__.load({
      */
     function actionLook(variant, saved) {
       if (variant === 'star') return { glyph: StarGlyph, label: saved ? 'save.starred' : 'save.quiet' }
+      if (variant === 'bookmark') return { glyph: BookmarkGlyph, label: saved ? 'save.open' : 'save.action' }
       return { glyph: ArrowGlyph, label: saved ? 'save.open' : 'save.action' }
     }
 
@@ -1973,6 +1987,7 @@ window.__ModuleLoader__.load({
       return h(React.Fragment, null, rules ? h('style', null, rules) : null, h(IconAction, {
         label: props.t('header.open'),
         onClick: () => { props.openPanel() },
+        variant: props.variant,
         note: null,
       }))
     }
@@ -2119,7 +2134,7 @@ window.__ModuleLoader__.load({
               order: 30,
               title: () => t('guide.title'),
               description: () => t('guide.description'),
-              icon: ArrowGlyph,
+              icon: BookmarkGlyph,
             }],
           })
         })
@@ -2143,7 +2158,10 @@ window.__ModuleLoader__.load({
           id: 'ask-reader-open',
           order: 25,
           label: () => t('header.open'),
-          inject: (sessionId) => ({ t, sessionId, openPanel, recover, chatT: (key, params) => railTranslate(key, params) }),
+          inject: (sessionId) => ({
+            t, sessionId, openPanel, recover, variant: 'bookmark',
+            chatT: (key, params) => railTranslate(key, params),
+          }),
         }, HeaderEntry))
       },
     }
