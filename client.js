@@ -942,8 +942,9 @@ window.__ModuleLoader__.load({
         stop()
         timer.current = setTimeout(() => { setNote(null); timer.current = 0 }, 6000)
       }, [])
-      // Drop the line early: the icon's own bubble is only ever on screen while
-      // the pointer rests on it, so leaving takes the text away at once.
+      // Drop the line on demand. The icon's bubble keeps a click's feedback up
+      // for the six-second timeout even after the pointer leaves, so this is
+      // only for a caller that wants the line gone at once.
       const hide = React.useCallback(() => { stop(); setNote(null) }, [])
       React.useEffect(() => () => { stop() }, [])
       return [note, show, hide]
@@ -1020,10 +1021,12 @@ window.__ModuleLoader__.load({
       const btnRef = React.useRef(null)
       const timer = React.useRef(0)
       const note = props.note
-      // The bubble belongs to the pointer: hovering shows it, leaving hides it.
-      // A note written by a click is not an exception, so moving off the icon
-      // after a pin takes the text away instead of leaving it on screen.
-      const visible = hover
+      // The bubble carries two things: the label the pointer asks for, and a
+      // note a click leaves behind. The label still belongs to the pointer
+      // alone; the note outlives the hover and runs to its own six-second
+      // timeout, so a pin's "saved" feedback stays readable after the mouse
+      // moves on.
+      const visible = hover || note != null
 
       /**
        * Anchor the bubble to the button's box in viewport coordinates. It hangs
@@ -1061,7 +1064,9 @@ window.__ModuleLoader__.load({
           const node = btnRef.current
           if (node && typeof node.getBoundingClientRect === 'function') {
             const rect = node.getBoundingClientRect()
-            if (rect.bottom < 0 || rect.top > window.innerHeight) { dismiss(); return }
+            // A click's note is still up here, so the bubble leaves the screen
+            // with the icon rather than parked at its last measured position.
+            if (rect.bottom < 0 || rect.top > window.innerHeight) { dismiss(); setAt(null); return }
             // Back in view with the pointer still on the icon: the bubble
             // returns at once, unless the dwell has not run yet anyway.
             if (!visible && pointing && timer.current === 0) { setHover(true); return }
@@ -1089,17 +1094,16 @@ window.__ModuleLoader__.load({
         if (timer.current) clearTimeout(timer.current)
         timer.current = setTimeout(() => { timer.current = 0; setHover(true) }, 260)
       }
-      /** Take the bubble and the feedback line away; the pointer itself stays on the icon. */
+      /** Take the hover label away; a click's note keeps its own timeout. */
       const dismiss = () => {
         if (timer.current) { clearTimeout(timer.current); timer.current = 0 }
         setHover(false)
-        // The feedback line goes with the pointer, so hovering again reads the
-        // icon's own label rather than an older "saved" note.
-        if (typeof props.onDismiss === 'function') props.onDismiss()
       }
       const leave = () => { setPointing(false); dismiss() }
 
-      const text = hover ? (note ? note.text : props.label) : null
+      // A click's note wins over the hover label while it lasts, and stays on
+      // screen whether the pointer is on the icon or not.
+      const text = note ? note.text : (hover ? props.label : null)
       const look = note && note.failed
         ? Object.assign({}, BUBBLE_LOOK, { color: 'var(--dsw-alias-state-error-primary)' })
         : BUBBLE_LOOK
@@ -1201,7 +1205,6 @@ window.__ModuleLoader__.load({
           entry,
           blocks: mdBlocks(entry.text),
           stamp: formatStamp(entry.time),
-          stampTitle: Number.isFinite(entry.time) ? new Date(entry.time).toLocaleString() : '',
           // Resolved against the in-memory mark, so a pin the history could not
           // place explains its missing rail marker instead of hiding the fact.
           turnUnresolved: needsTurn(entry) && isTurnUnresolved(sessionId, entry.messageId),
@@ -1420,14 +1423,14 @@ window.__ModuleLoader__.load({
               h('span', null, t('empty.hint')),
             )
           : h('div', { className: 'akr-list' },
-              rendered.map(({ entry, blocks, stamp, stampTitle, turnUnresolved }) => {
+              rendered.map(({ entry, blocks, stamp, turnUnresolved }) => {
                 // Every pin reads in full on arrival; folding is the exception.
                 const open = !folded.includes(entry.id)
                 return h('div', { className: 'akr-card', key: entry.id },
                   h('div', { className: 'akr-card-head' },
                     h('span', { className: 'akr-tag' }, t(entry.source === 'paste' ? 'source.paste' : 'source.reply')),
                     h('span', { className: 'akr-card-title', title: entry.title }, entry.title),
-                    stamp === '' ? null : h('span', { className: 'akr-time', title: stampTitle }, stamp),
+                    stamp === '' ? null : h('span', { className: 'akr-time' }, stamp),
                   ),
                   h('div', {
                     className: 'akr-body akr-md' + (open ? ' akr-body-open' : ''),
@@ -1532,6 +1535,8 @@ window.__ModuleLoader__.load({
         label: t(actionLook(props.variant, saved).label),
         onClick,
         note,
+        // Kept for callers that want the line gone early; leaving the icon no
+        // longer routes here, so a click's note keeps its six-second timeout.
         onDismiss: dismissNote,
       })
     }
