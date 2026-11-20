@@ -45,6 +45,14 @@ window.__ModuleLoader__.load({
     const RAIL_PINNED_HEIGHT = 4
     /** The bright palette a pinned turn is drawn with — a new pin and a backfilled legacy row alike. */
     const RAIL_COLORS = ['#00bfd8', '#ff669b', '#a78bfa', '#ffae38', '#38c98b', '#5598ff']
+    /** How long one jump keeps paging back for a message outside the loaded window, ms. */
+    const JUMP_BUDGET_MS = 15000
+    /** Hard cap on pages one jump may pull, whatever the clock says. */
+    const JUMP_PAGE_LIMIT = 60
+    /** Gap between two history pulls, ms: about how long a page takes to mount. */
+    const JUMP_STEP_MS = 240
+    /** Pulls in a row without the conversation growing before a jump calls it a stall. */
+    const JUMP_STALL_LIMIT = 8
 
     const DICT = {
       zh: {
@@ -98,6 +106,7 @@ window.__ModuleLoader__.load({
         'note.unpinned': '已取消收藏',
         'note.jumping': '正在向上翻找这条消息……',
         'note.jumpMissing': '翻到会话开头也没有找到这条消息。',
+        'note.jumpIncomplete': '没能定位到这条消息（已尝试向上翻 {pages} 页），更早的历史可能还没加载完。',
         'note.storageFailed': '浏览器拒绝保存，这次的内容只在当前页面有效。',
         'note.noTurn': '这条收藏找不到所在轮次，右侧横线无法显示',
         'unit.entries': '条',
@@ -153,6 +162,7 @@ window.__ModuleLoader__.load({
         'note.unpinned': 'Unpinned; the matching rail marker is back to normal.',
         'note.jumping': 'Paging back to find that message…',
         'note.jumpMissing': 'Reached the start of the conversation without finding that message.',
+        'note.jumpIncomplete': 'Could not locate that message (paged back {pages} pages); older history may still be unloaded.',
         'note.storageFailed': 'The browser refused to save it; it lasts only for this page.',
         'note.noTurn': 'This pin has no turn, so it has no marker on the right',
         'unit.entries': 'pinned',
@@ -1311,7 +1321,13 @@ window.__ModuleLoader__.load({
       /**
        * Scroll the conversation to the message a pin came from. The chat marks
        * every row with its anchor key, so the jump is a lookup plus a scroll;
-       * a row outside the loaded window simply is not there to find.
+       * a row outside the loaded window simply is not there to find. When it has
+       * to be paged in, the walk ends in one of three ways and the notice says
+       * which: the row appeared, the conversation's start was reached without it,
+       * or the walk ran out of budget (time, pages, a stalled column) before that
+       * could be settled.
+       * @param {{ messageId?: string }} entry - the pin whose message should be revealed.
+       * @returns {void}
        */
       const jumpTo = (entry) => {
         if (typeof entry.messageId !== 'string' || entry.messageId === '') return
@@ -1336,12 +1352,25 @@ window.__ModuleLoader__.load({
           row.scrollIntoView({ block: 'center', inline: 'nearest', behavior })
           return row
         }
+        /** The conversation's own "load older" control, while it is still clickable. */
+        const olderControl = () => document.querySelector('[data-chat-history] button:not([disabled])')
         /** Pull one page of older history; false when there is none left to pull. */
         const loadOlder = () => {
-          const button = document.querySelector('[data-chat-history] button:not([disabled])')
+          const button = olderControl()
           if (button === null) return false
           button.click()
           return true
+        }
+        /**
+         * The walk gave up before it could prove it reached the conversation's
+         * start: say how far it got, and claim nothing about the start.
+         * @param {number} pages - pages pulled so far.
+         * @returns {void}
+         */
+        const incomplete = (pages) => {
+          // The copy carries a plain token; `t` is a plain lookup, so the count is
+          // filled in here rather than passed as an argument.
+          showNote(t('note.jumpIncomplete').split('{pages}').join(String(pages)), true)
         }
 
         const settle = (row) => {
@@ -1356,25 +1385,31 @@ window.__ModuleLoader__.load({
         // The row is simply not paged in yet: walk the history backwards through
         // the conversation's own "load older" control until it appears, then stop.
         showNote(t('note.jumping'), false)
-        const deadline = Date.now() + 15000
+        const deadline = Date.now() + JUMP_BUDGET_MS
         let pages = 0
         let seen = -1
         let stalls = 0
         const step = () => {
           const row = reveal('instant')
           if (row !== null) { settle(row); return }
-          // Stop when the conversation stops growing: the older-history control
-          // has nothing left, so further clicks only burn time.
           let count = 0
           try { count = chatNodes.values().length } catch (error) { count = seen }
-          if (count === seen) stalls += 1
+          // A page usually mounts more slowly than one sample, so a flat count only
+          // counts towards a stall while the control is still there to click.
+          if (count === seen && olderControl() !== null) stalls += 1
           else { stalls = 0; seen = count }
-          if (Date.now() > deadline || pages >= 60 || stalls >= 4 || !loadOlder()) {
+          if (Date.now() > deadline || pages >= JUMP_PAGE_LIMIT || stalls >= JUMP_STALL_LIMIT) {
+            incomplete(pages)
+            return
+          }
+          if (!loadOlder()) {
+            // Nothing left to click: the conversation's start sits behind the
+            // loaded window, so the message really is not in it.
             showNote(t('note.jumpMissing'), true)
             return
           }
           pages += 1
-          setTimeout(step, 220)
+          setTimeout(step, JUMP_STEP_MS)
         }
         setTimeout(step, 160)
       }

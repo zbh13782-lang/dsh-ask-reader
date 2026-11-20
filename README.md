@@ -37,7 +37,7 @@ Long answers are easier to work through beside the chat than in it: the board ke
 - Pins hold at most 40 entries per session; the oldest is dropped past that.
 - Every write merges against what is already stored rather than the in-page cache, so a reload between two writes cannot drop a pin.
 - Quotes are capped: 2000 characters from a reply (that reply is already in the session log), 6000 from a pasted excerpt. The overflow is marked `… (truncated)`.
-- **Jump** finds the message through the conversation's own anchor keys. When the row is not paged in yet, it walks backwards through the chat's own *load older* control until the row appears, then centres on it; it reports only after reaching the start of the conversation without finding it.
+- **Jump** finds the message through the conversation's own anchor keys. When the row is not paged in yet, it walks backwards through the chat's own *load older* control until the row appears, then centres on it. It ends in one of three ways, each with its own line: the row appears; the start of the conversation is reached and the row is not in it (the *load older* control is gone or disabled); or the walk runs out of budget — 15 seconds, 60 pages, or a column that stops growing while the control is still clickable — and it then reports only how many pages it tried, without claiming to have reached the start.
 - Pins made before 0.1.3 carry the time they were pinned; from 0.1.3 on, a reply's pin carries the time the reply was written.
 - Only the session on screen has a composer. Where it is unavailable, the panel copies the passage to the clipboard and says so instead.
 - The Markdown renderer is the plugin's own and deliberately small: no math, no Mermaid, no raw HTML, no images. Those show as text.
