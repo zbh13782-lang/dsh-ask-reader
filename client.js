@@ -991,7 +991,7 @@ window.__ModuleLoader__.load({
       borderRadius: 'var(--dsw-radius-sm, 8px)', border: '1px solid var(--dsw-alias-border-l2)',
       background: 'var(--dsw-alias-bg-overlay)', color: 'var(--dsw-alias-label-primary)',
       fontSize: '12px', lineHeight: '18px', whiteSpace: 'normal', textAlign: 'left',
-      boxShadow: '0 6px 20px rgba(0,0,0,.18)', pointerEvents: 'none',
+      boxShadow: 'var(--dsw-elevation-panel, 0 6px 20px rgba(0,0,0,.18))', pointerEvents: 'none',
     }
 
     /** React DOM for the portal that keeps the bubble above every host layer. */
@@ -1638,16 +1638,17 @@ window.__ModuleLoader__.load({
       input.akr-rail-switch {
         appearance:none; -webkit-appearance:none; position:relative; display:inline-block;
         flex:0 0 36px; width:36px; height:20px; box-sizing:border-box; margin:0;
-        padding:0; border:0; border-radius:8px; background:#c8c9cc; cursor:pointer;
+        padding:0; border:1px solid var(--dsw-alias-border-l2,#c9ced8); border-radius:8px;
+        background:var(--dsw-alias-bg-layer-2,#e9ecf2); cursor:pointer;
         transition:background-color 140ms ease;
       }
       input.akr-rail-switch::before {
         content:""; position:absolute; top:3px; left:3px; width:14px; height:14px;
-        border-radius:5px; background:#fff; transform:translateX(0);
-        transition:transform 140ms ease;
+        border-radius:5px; background:var(--dsw-alias-label-secondary,#61666b); transform:translateX(0);
+        transition:transform 140ms ease,background-color 140ms ease;
       }
-      input.akr-rail-switch:checked {background:#0f1115}
-      input.akr-rail-switch:checked::before {transform:translateX(16px)}
+      input.akr-rail-switch:checked {background:var(--dsw-alias-brand-primary,#565d68);border-color:var(--dsw-alias-brand-primary,#565d68)}
+      input.akr-rail-switch:checked::before {transform:translateX(16px);background:var(--dsw-alias-bg-base,#f7f8fa)}
       input.akr-rail-switch:focus-visible {outline:2px solid var(--dsw-focus-ring-color,#1875e2);outline-offset:3px}
       @media (prefers-reduced-motion:reduce){input.akr-rail-switch,input.akr-rail-switch::before{transition:none}}
       @media (forced-colors:active){
