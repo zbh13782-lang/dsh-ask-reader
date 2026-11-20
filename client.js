@@ -700,6 +700,19 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The colour one row is drawn with: the first bright palette swatch the
+     * board is not using yet, else a hue of the caller's own seed once the whole
+     * palette is taken, which is never undefined.
+     * @param taken - the swatches already in use.
+     * @param seed - the hue to fall back on, in degrees.
+     * @returns the colour as #rrggbb.
+     */
+    function pickRailColor(taken, seed) {
+      const free = RAIL_COLORS.find(swatch => !taken.has(swatch))
+      return free === undefined ? hueInk(seed) : free
+    }
+
+    /**
      * The colour each row of one board is drawn with. A row that already stores a
      * colour keeps it. A reply from before colours were stored takes the next free
      * palette swatch, so a legacy pin wears one of the same bright colours a new
@@ -720,8 +733,7 @@ window.__ModuleLoader__.load({
         .sort((a, b) => hueSeed(a.row) - hueSeed(b.row)
           || (String(a.row.id) < String(b.row.id) ? -1 : String(a.row.id) > String(b.row.id) ? 1 : 0))
       for (const { row, index } of uncoloured) {
-        const free = RAIL_COLORS.find(swatch => !taken.has(swatch))
-        const color = free === undefined ? hueInk(hueSeed(row)) : free
+        const color = pickRailColor(taken, hueSeed(row))
         taken.add(color)
         colors[index] = color
       }
@@ -740,8 +752,7 @@ window.__ModuleLoader__.load({
      */
     function pinColor(rows) {
       const used = new Set(rows.map(row => row.color))
-      const free = RAIL_COLORS.find(swatch => !used.has(swatch))
-      return free === undefined ? hueInk(rows.length * 137) : free
+      return pickRailColor(used, rows.length * 137)
     }
 
     /**
@@ -906,28 +917,48 @@ window.__ModuleLoader__.load({
       return plain.length > 60 ? plain.slice(0, 60) + '…' : plain
     }
 
+    /**
+     * The nodes of a conversation table that carry a finalized reply, in table
+     * order. The table is asked defensively: an embedder that offers nothing
+     * readable reads as empty rather than throwing into a click handler.
+     * @param nodes - the conversation's node table.
+     * @returns the finalized nodes, in table order.
+     */
+    function finalNodes(nodes) {
+      try {
+        if (!nodes || typeof nodes.values !== 'function') return []
+        return Array.from(nodes.values()).filter((node) => node && node.data && node.data.finalNode)
+      } catch (error) {
+        return []
+      }
+    }
+
+    /**
+     * The conversation's own row for one finalized message. A table that cannot
+     * be read is the same answer as a table without the message.
+     * @param nodes - the conversation's node table.
+     * @param messageId - the message to find.
+     * @returns the node, or null when the table does not hold it.
+     */
+    function nodeForMessage(nodes, messageId) {
+      const node = finalNodes(nodes).find((row) => row.data.finalNode.messageId === messageId)
+      return node === undefined ? null : node
+    }
+
     /** One finalized assistant reply: its readable text, its turn and the time it was written. */
     function replySnapshot(nodes, messageId) {
-      let all = []
-      try {
-        all = nodes && typeof nodes.values === 'function' ? nodes.values() : []
-      } catch (error) {
-        return ''
-      }
-      for (const node of all) {
-        const data = node && node.data
-        const finalNode = data && data.finalNode
-        if (!finalNode || finalNode.messageId !== messageId) continue
-        const blocks = Array.isArray(finalNode.blocks) ? finalNode.blocks : []
-        const text = blocks
-          .filter((block) => block && block.kind === 'text' && typeof block.text === 'string')
-          .map((block) => block.text)
-          .join('\n\n')
-          .trim()
-        if (text === '') return null
-        return { text, turn: data.turn, time: Number.isFinite(data.time) ? data.time : undefined }
-      }
-      return null
+      const node = nodeForMessage(nodes, messageId)
+      if (node === null) return null
+      const data = node.data
+      const finalNode = data.finalNode
+      const blocks = Array.isArray(finalNode.blocks) ? finalNode.blocks : []
+      const text = blocks
+        .filter((block) => block && block.kind === 'text' && typeof block.text === 'string')
+        .map((block) => block.text)
+        .join('\n\n')
+        .trim()
+      if (text === '') return null
+      return { text, turn: data.turn, time: Number.isFinite(data.time) ? data.time : undefined }
     }
 
     /** Put text on the clipboard; @returns whether the browser accepted it. */
@@ -1011,8 +1042,8 @@ window.__ModuleLoader__.load({
      */
     function actionLook(variant, saved) {
       if (variant === 'star') return { glyph: StarGlyph, label: saved ? 'save.starred' : 'save.quiet' }
-      if (variant === 'bookmark') return { glyph: BookmarkGlyph, label: saved ? 'save.open' : 'save.action' }
-      return { glyph: ArrowGlyph, label: saved ? 'save.open' : 'save.action' }
+      // A bookmark and an arrow say the same thing; only the glyph differs.
+      return { glyph: variant === 'bookmark' ? BookmarkGlyph : ArrowGlyph, label: saved ? 'save.open' : 'save.action' }
     }
 
     /**
@@ -1224,12 +1255,7 @@ window.__ModuleLoader__.load({
 
       // Opening the column is another chance to resolve what the header could
       // not: the lookup itself is shared per Session, so this cannot pile up.
-      const pendingTurns = JSON.stringify(entries.filter(needsTurn).map((row) => row.messageId).sort())
-      React.useEffect(() => {
-        if (pendingTurns === '[]' || typeof props.recover !== 'function') return undefined
-        props.recover(sessionId, JSON.parse(pendingTurns))
-        return undefined
-      }, [sessionId, pendingTurns, props.recover])
+      useRecoverTurns(sessionId, entries, props.recover)
 
       /** The live selection inside this panel, and where to float its action. */
       const readPick = React.useCallback(() => {
@@ -1336,15 +1362,8 @@ window.__ModuleLoader__.load({
         if (typeof entry.messageId !== 'string' || entry.messageId === '') return
         /** The conversation's own key for this message, once the chat knows it. */
         const anchorKey = () => {
-          try {
-            for (const node of chatNodes.values()) {
-              const finalNode = node && node.data && node.data.finalNode
-              if (finalNode && finalNode.messageId === entry.messageId && typeof node.key === 'string') return node.key
-            }
-          } catch (error) {
-            return ''
-          }
-          return ''
+          const node = nodeForMessage(chatNodes, entry.messageId)
+          return node !== null && typeof node.key === 'string' ? node.key : ''
         }
         /** Scroll to the row, or null while it is not mounted. */
         const reveal = (behavior) => {
@@ -1704,18 +1723,12 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * One attribute value for a selector. `CSS.escape` is not guaranteed — an
-     * embedder can withhold it and a throw here would take the session header
-     * down — so a local quote-and-backslash escape stands in for it, in the same
-     * defensive style as the preference reads.
+     * One attribute value for a selector, quoted and escaped by the platform's
+     * own escaper: the browser this client runs in always offers `CSS.escape`.
      * @returns the quoted, escaped attribute value.
      */
     function cssAttr(value) {
-      const text = String(value)
-      try {
-        if (window.CSS && typeof window.CSS.escape === 'function') return '"' + window.CSS.escape(text) + '"'
-      } catch (error) { /* fall through to the local escape */ }
-      return '"' + text.replace(/["\\]/g, '\\$&') + '"'
+      return '"' + window.CSS.escape(String(value)) + '"'
     }
 
     // ---------------- host rail css: the rules painted on the native rail ---
@@ -1806,15 +1819,13 @@ window.__ModuleLoader__.load({
         }
       }
       if (turnless.size && nodes) {
-        try {
-          for (const node of nodes.values()) {
-            const data = node && node.data
-            const messageId = data && data.finalNode && data.finalNode.messageId
-            if (!turnless.has(messageId)) continue
-            if (!(Number.isSafeInteger(data.turn) && data.turn >= 0)) continue
-            if (!claimed.has(data.turn)) claimed.set(data.turn, turnless.get(messageId))
-          }
-        } catch (error) { /* a missing node table only costs the extra turns */ }
+        for (const node of finalNodes(nodes)) {
+          const data = node.data
+          const messageId = data.finalNode.messageId
+          if (!turnless.has(messageId)) continue
+          if (!(Number.isSafeInteger(data.turn) && data.turn >= 0)) continue
+          if (!claimed.has(data.turn)) claimed.set(data.turn, turnless.get(messageId))
+        }
       }
       // The board prepends new pins; oldest first keeps the rules in reading order.
       return Array.from(claimed, ([turn, pin]) => ({ turn, color: pin.color, id: pin.id })).reverse()
@@ -1892,27 +1903,32 @@ window.__ModuleLoader__.load({
       return React.useSyncExternalStore(subscribeUnresolved, unresolvedSnapshot, unresolvedSnapshot)
     }
 
-    /** How many messages the conversation holds, whatever shape its table has. */
-    function countNodes(nodes) {
-      try {
-        if (!nodes) return 0
-        if (Number.isFinite(nodes.size)) return nodes.size
-        const all = typeof nodes.values === 'function' ? nodes.values() : []
-        return Number.isFinite(all && all.length) ? all.length : Array.from(all || []).length
-      } catch (error) {
-        return 0
-      }
+    /**
+     * Ask the history to place the pins that are still without a turn. The
+     * header and the open column read the same board, so both ask with the same
+     * id list and skip the same empty case; three moments ask for one walk — a
+     * mount, a pin list that still holds an unresolved row, and a conversation
+     * that has loaded more messages, which is what `nodeCount` watches.
+     * @param sessionId - the Session whose pins are asked about.
+     * @param entries - the board as stored.
+     * @param recover - the shared per-Session lookup, when the plugin got one.
+     * @param nodeCount - how many messages the conversation holds; a caller that
+     *   reads the board alone passes nothing, and that constant leaves its
+     *   dependency list as it was.
+     * @returns nothing.
+     */
+    function useRecoverTurns(sessionId, entries, recover, nodeCount) {
+      const pending = JSON.stringify(entries.filter(needsTurn).map((row) => row.messageId).sort())
+      React.useEffect(() => {
+        if (pending === '[]' || typeof recover !== 'function') return undefined
+        recover(sessionId, JSON.parse(pending))
+        return undefined
+      }, [sessionId, pending, nodeCount, recover])
     }
 
-    /** An abort handle; a browser without AbortController gets an inert one. */
-    function makeAbort() {
-      try {
-        if (typeof AbortController === 'function') return new AbortController()
-      } catch (error) { /* fall through to the inert handle */ }
-      return {
-        abort() { this.signal.aborted = true },
-        signal: { aborted: false },
-      }
+    /** How many messages the conversation holds: every node its table lists. */
+    function countNodes(nodes) {
+      try { return nodes.values().length } catch (error) { return 0 }
     }
 
     /** Said once: a missing history service must not fill the console on every retry. */
@@ -1990,28 +2006,31 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** The header entry keeps the rail in sync even with the board closed. */
-    function HeaderEntry(props) {
-      const entries = useEntries(props.sessionId)
-      const nodes = props.useChat(snapshot => snapshot.nodes)
-      const unresolved = JSON.stringify(entries.filter(needsTurn).map(row => row.messageId).sort())
-      // Three moments ask for one walk: this mount, a pin list that still holds
-      // an unresolved row, and a conversation that has loaded more messages (a
-      // pin outside the old window may be placeable now). The walk is shared per
-      // Session, so these moments cannot start parallel paging.
-      const nodeCount = countNodes(nodes)
-      React.useEffect(() => {
-        if (unresolved === '[]' || typeof props.recover !== 'function') return undefined
-        props.recover(props.sessionId, JSON.parse(unresolved))
-        return undefined
-      }, [props.sessionId, unresolved, nodeCount, props.recover])
+    /**
+     * The rail's rule set for one header render: this device's appearance
+     * preferences applied to this Session's board and node table.
+     * @param sessionId - the Session whose rail is styled.
+     * @param entries - the board as stored.
+     * @param nodes - the conversation's node table, when it has one.
+     * @param chatT - the chat dictionary, for the label spellings.
+     * @returns the CSS rules; empty when no pinned turn can be spelled.
+     */
+    function useRailRules(sessionId, entries, nodes, chatT) {
       const prefs = useRailPrefs()
-      const rules = railRules({ sessionId: props.sessionId, entries, nodes, chatT: props.chatT, prefs })
-      // The rule set is read off the rail's painted DOM. On a first frame that
-      // DOM can still be empty and the chat locale unbound, so nothing is
-      // written; one frame later the rail is there, so rebuild exactly once.
-      // The state value only exists to make that one re-render happen, and the
-      // ref keeps a second frame from being asked for.
+      return railRules({ sessionId, entries, nodes, chatT, prefs })
+    }
+
+    /**
+     * One catch-up frame for a rail whose painted DOM (and chat locale) were not
+     * there on the first render: when there are turns to spell but no rule set
+     * yet, ask for exactly one re-render, in which the rules read the live rail.
+     * The state value only exists to make that re-render happen; the ref keeps a
+     * second frame from being asked for.
+     * @param rules - this render's rule set; '' means nothing could be spelled.
+     * @param entries - the board as stored.
+     * @returns nothing.
+     */
+    function useRailRebuild(rules, entries) {
       const [, setRailRebuild] = React.useState(0)
       const rebuilt = React.useRef(false)
       // Mount only: any later rule set comes from the next render anyway.
@@ -2025,6 +2044,19 @@ window.__ModuleLoader__.load({
         try { frame = window.requestAnimationFrame(() => setRailRebuild((value) => value + 1)) } catch (error) { frame = 0 }
         return () => { if (frame) try { window.cancelAnimationFrame(frame) } catch (error) { /* already gone */ } }
       }, [])
+    }
+
+    /** The header entry keeps the rail in sync even with the board closed. */
+    function HeaderEntry(props) {
+      const entries = useEntries(props.sessionId)
+      const nodes = props.useChat(snapshot => snapshot.nodes)
+      // Three moments ask for one walk: this mount, a pin list that still holds
+      // an unresolved row, and a conversation that has loaded more messages (a
+      // pin outside the old window may be placeable now). The walk is shared per
+      // Session, so these moments cannot start parallel paging.
+      useRecoverTurns(props.sessionId, entries, props.recover, countNodes(nodes))
+      const rules = useRailRules(props.sessionId, entries, nodes, props.chatT)
+      useRailRebuild(rules, entries)
       return h(React.Fragment, null, rules ? h('style', null, rules) : null, h(IconAction, {
         label: props.t('header.open'),
         onClick: () => { props.openPanel() },
@@ -2058,7 +2090,7 @@ window.__ModuleLoader__.load({
             for (const id of ids) running.ids.add(id)
             return running.promise
           }
-          const controller = makeAbort()
+          const controller = new AbortController()
           const attempt = { controller, ids: new Set(ids), promise: null }
           lookups.set(key, attempt)
           attempt.promise = recoverTurns(ctx, key, attempt.ids, controller.signal)
