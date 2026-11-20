@@ -55,6 +55,10 @@ dsh plugin --profile <profile> add https://github.com/zbh13782-lang/dsh-ask-read
 
 Or, in DSH Desktop, **Settings → Plugins → Add plugin** and paste either address. The package declares `dsh.bundle`, ships no dependencies, no build step and no install scripts — a tarball install therefore skips the build-approval prompt.
 
+The same two addresses work unchanged on Windows and Linux: the plugin is a browser bundle, `index.js` is empty, and nothing in it reads a path, a shell or an OS name. The tarball is plain `.tgz` (distil with `tar -xzf` if you want to read it), and `tar` ships with Windows 10 and later.
+
+If your profile shows this plugin as a **`link:` entry pointing into a local directory** — for example `link:/Users/you/dsh-plugins/dsh-ask-reader` — that row came from a directory install on another machine and cannot work here: Plugins reports it as *指向本地目录，本机不存在*. Remove that row and install from one of the two addresses above instead; nothing in the plugin needs to change.
+
 ## Layout
 
 | Path | Role |

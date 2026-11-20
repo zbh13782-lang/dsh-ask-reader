@@ -252,9 +252,9 @@ window.__ModuleLoader__.load({
       'background:var(--dsw-alias-markdown-code-block-banner,var(--dsw-alias-bg-layer-2));}',
       '.akr-md-code{margin:0;padding:8px 10px;overflow-x:auto;background:transparent;',
       'color:var(--shiki-foreground,var(--dsw-alias-label-primary));',
-      'font:var(--dsw-font-markdown-code-block,12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace);white-space:pre;}',
+      'font:var(--dsw-font-markdown-code-block,12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace);white-space:pre;}',
       '.akr-md-code code{font:inherit;background:none;border:0;padding:0;}',
-      '.akr-icode{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.92em;',
+      '.akr-icode{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace);font-size:.92em;',
       'background:var(--dsw-alias-markdown-inline-code,var(--dsw-alias-bg-layer-2));border-radius:4px;padding:0 4px;}',
     ].join('')
 
